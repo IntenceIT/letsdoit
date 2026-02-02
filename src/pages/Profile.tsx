@@ -32,7 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 const Profile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { profile, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -96,13 +96,13 @@ const Profile: React.FC = () => {
         <div className="max-w-lg mx-auto flex flex-col items-center">
           <Avatar className="w-24 h-24 border-4 border-white/30 shadow-xl">
             <AvatarFallback className="bg-white/20 text-white text-2xl font-bold">
-              {profile?.full_name ? getInitials(profile.full_name) : 'U'}
+              {user?.full_name ? getInitials(user.full_name) : 'U'}
             </AvatarFallback>
           </Avatar>
           <h1 className="text-2xl font-bold mt-4">
-            {profile?.full_name || 'User'}
+            {user?.full_name || 'User'}
           </h1>
-          <p className="text-white/80 text-sm">{profile?.email}</p>
+          <p className="text-white/80 text-sm">{user?.email}</p>
           {isAdmin && (
             <div className="flex items-center gap-1 mt-2 px-3 py-1 bg-white/20 rounded-full">
               <Shield className="w-3 h-3" />
@@ -133,7 +133,7 @@ const Profile: React.FC = () => {
                   <div>
                     <p className="text-sm font-medium">Display Name</p>
                     <p className="text-sm text-muted-foreground">
-                      {profile?.full_name || 'Not set'}
+                      {user?.full_name || 'Not set'}
                     </p>
                   </div>
                 </div>
@@ -145,7 +145,7 @@ const Profile: React.FC = () => {
                   <div>
                     <p className="text-sm font-medium">Email Address</p>
                     <p className="text-sm text-muted-foreground">
-                      {profile?.email || 'Not set'}
+                      {user?.email || 'Not set'}
                     </p>
                   </div>
                 </div>

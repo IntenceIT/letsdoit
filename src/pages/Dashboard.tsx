@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const Dashboard: React.FC = () => {
-  const { profile, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDonePopup, setShowDonePopup] = useState(false);
   const [showPendingPopup, setShowPendingPopup] = useState(false);
@@ -47,7 +47,7 @@ const Dashboard: React.FC = () => {
             <div>
               <p className="text-white/80 text-sm">{greeting()}</p>
               <h1 className="text-2xl font-bold">
-                {profile?.full_name || 'User'}
+                {user?.full_name || 'User'}
               </h1>
             </div>
             {isAdmin && (
