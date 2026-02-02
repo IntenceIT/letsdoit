@@ -39,14 +39,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = async (userId: string) => {
     try {
+      // Check for pending first name from OAuth signup
+      const pendingFirstName = localStorage.getItem('pendingFirstName');
+      
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .single();
 
+      if (profileError && profileError.code === 'PGRST116') {
+        // Profile doesn't exist, it will be created by trigger
+        // Wait a moment and retry
+        setTimeout(() => fetchProfile(userId), 1000);
+        return;
+      }
+      
       if (profileError) throw profileError;
-      setProfile(profileData);
+      
+      // Update profile with pending first name if available
+      if (pendingFirstName && profileData) {
+        const { data: updatedProfile } = await supabase
+          .from('profiles')
+          .update({ full_name: pendingFirstName })
+          .eq('user_id', userId)
+          .select()
+          .single();
+        
+        localStorage.removeItem('pendingFirstName');
+        setProfile(updatedProfile || profileData);
+      } else {
+        setProfile(profileData);
+      }
 
       // Check if user is admin
       const { data: roleData } = await supabase

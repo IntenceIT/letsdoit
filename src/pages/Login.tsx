@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [firstName, setFirstName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -58,10 +59,22 @@ const Login: React.FC = () => {
   };
 
   const handleGoogleLogin = async () => {
+    if (!firstName.trim()) {
+      toast({
+        title: 'Name Required',
+        description: 'Please enter your first name before continuing',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Store first name in localStorage for profile creation after OAuth
+    localStorage.setItem('pendingFirstName', firstName.trim());
+
     setIsGoogleLoading(true);
     try {
       const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+        redirect_uri: window.location.origin + '/dashboard',
       });
 
       if (result.redirected) {
@@ -125,12 +138,29 @@ const Login: React.FC = () => {
             <CardDescription>Sign in to continue to your dashboard</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* First Name Field */}
+            <div className="space-y-2">
+              <Label htmlFor="firstName">First Name</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="firstName"
+                  type="text"
+                  placeholder="Enter your first name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="pl-10 h-12"
+                  autoComplete="given-name"
+                />
+              </div>
+            </div>
+
             {/* Google Login */}
             <Button
               variant="outline"
               className="w-full h-12 gap-3 font-medium"
               onClick={handleGoogleLogin}
-              disabled={isGoogleLoading}
+              disabled={isGoogleLoading || !firstName.trim()}
             >
               {isGoogleLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
