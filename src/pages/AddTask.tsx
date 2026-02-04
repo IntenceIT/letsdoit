@@ -13,8 +13,7 @@ import {
 import { format, addYears } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMembers } from '@/hooks/useMembers';
-import { TaskWithCompletion } from '@/hooks/useTasks';
-import { supabase } from '@/integrations/supabase/client';
+import { TaskWithCompletion, addTask, updateTask, resetTaskCompletions } from '@/hooks/useTasks';
 import BottomNav from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,13 +29,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -137,51 +129,33 @@ const AddTask: React.FC = () => {
         title: title.trim(),
         description: description.trim() || null,
         remarks: remarks.trim() || null,
-        task_type: taskType,
+        task_type: taskType as 'permanent' | 'additional',
         requires_ai_count: requiresAiCount,
         weekdays: taskType === 'permanent' ? selectedWeekdays : [],
         start_date: taskType === 'additional' && startDate ? format(startDate, 'yyyy-MM-dd') : null,
         end_date: taskType === 'additional' && endDate ? format(endDate, 'yyyy-MM-dd') : null,
         assigned_users: taskType === 'additional' && !assignAll ? assignedUsers : [],
-        created_by: user?.id,
+        created_by: user?.id || null,
       };
 
       if (isEditing && editTask) {
         // Check if AI count was just enabled on a completed task
         if (requiresAiCount && !hadAiCountEnabled) {
-          // Reset all completions for this task
-          await supabase
-            .from('task_completions')
-            .update({
-              is_completed: false,
-              ai_count_value: null,
-              completed_at: null,
-            })
-            .eq('task_id', editTask.id);
-
+          resetTaskCompletions(editTask.id);
           toast({
             title: 'Task Reset',
             description: 'AI Count enabled. Task reset to Pending for all users.',
           });
         }
 
-        const { error } = await supabase
-          .from('tasks')
-          .update(taskData)
-          .eq('id', editTask.id);
-
-        if (error) throw error;
+        updateTask(editTask.id, taskData);
 
         toast({
           title: 'Task Updated',
           description: 'Task has been updated successfully',
         });
       } else {
-        const { error } = await supabase
-          .from('tasks')
-          .insert(taskData);
-
-        if (error) throw error;
+        addTask(taskData);
 
         toast({
           title: 'Task Created',
@@ -495,33 +469,35 @@ const AddTask: React.FC = () => {
                   </div>
 
                   {!assignAll && (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <p className="text-sm text-muted-foreground">
+                        Select specific members:
+                      </p>
                       {assignableMembers.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-4 text-center">
+                        <p className="text-sm text-muted-foreground italic">
                           No team members available
                         </p>
                       ) : (
-                        assignableMembers.map((member) => (
-                          <div
-                            key={member.user_id}
-                            className="flex items-center space-x-2 p-2 rounded-lg hover:bg-muted"
-                          >
-                            <Checkbox
-                              id={member.user_id}
-                              checked={assignedUsers.includes(member.user_id)}
-                              onCheckedChange={() => handleUserToggle(member.user_id)}
-                            />
-                            <Label
-                              htmlFor={member.user_id}
-                              className="flex-1 cursor-pointer"
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {assignableMembers.map((member) => (
+                            <div
+                              key={member.user_id}
+                              className="flex items-center space-x-2"
                             >
-                              <span className="font-medium">{member.full_name}</span>
-                              <span className="text-xs text-muted-foreground ml-2">
-                                {member.email}
-                              </span>
-                            </Label>
-                          </div>
-                        ))
+                              <Checkbox
+                                id={member.user_id}
+                                checked={assignedUsers.includes(member.user_id)}
+                                onCheckedChange={() => handleUserToggle(member.user_id)}
+                              />
+                              <Label
+                                htmlFor={member.user_id}
+                                className="cursor-pointer text-sm"
+                              >
+                                {member.full_name}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   )}
@@ -535,12 +511,12 @@ const AddTask: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.3 }}
         >
           <Button
             onClick={handleSubmit}
             disabled={isLoading}
-            className="w-full h-12 bg-gradient-hero hover:opacity-90 font-medium"
+            className="w-full h-12"
           >
             {isLoading ? (
               <>

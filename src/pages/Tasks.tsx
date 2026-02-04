@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Filter, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTasks, TaskWithCompletion } from '@/hooks/useTasks';
+import { useTasks, TaskWithCompletion, deleteTask } from '@/hooks/useTasks';
 import BottomNav from '@/components/BottomNav';
 import TaskCard from '@/components/TaskCard';
 import DateSelector from '@/components/DateSelector';
@@ -20,7 +20,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 const Tasks: React.FC = () => {
@@ -73,13 +72,7 @@ const Tasks: React.FC = () => {
     if (!taskToDelete) return;
 
     try {
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', taskToDelete);
-
-      if (error) throw error;
-
+      deleteTask(taskToDelete);
       toast({
         title: 'Task Deleted',
         description: 'The task has been deleted successfully',
