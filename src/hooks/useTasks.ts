@@ -137,7 +137,7 @@ export const useTasks = (selectedDate: Date) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTasks = useCallback(() => {
+  useEffect(() => {
     if (!user) {
       setTasks([]);
       setIsLoading(false);
@@ -216,7 +216,72 @@ export const useTasks = (selectedDate: Date) => {
     }
   }, [selectedDate, user, isAdmin]);
 
-  const updateTaskCompletion = useCallback(async (
+  const refetch = () => {
+    // Trigger re-render by updating a dependency - we'll use a workaround
+    setIsLoading(true);
+    setTimeout(() => {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const dayOfWeek = selectedDate.getDay();
+      const dayName = Object.keys(WEEKDAY_MAP).find(key => WEEKDAY_MAP[key] === dayOfWeek) || '';
+
+      const allTasks = getStoredTasks();
+      const allCompletions = getStoredCompletions();
+
+      const filteredTasks = allTasks.filter((task: Task) => {
+        if (task.task_type === 'permanent') {
+          return task.weekdays.includes(dayName);
+        } else {
+          const startDate = task.start_date ? parseISO(task.start_date) : null;
+          const endDate = task.end_date ? parseISO(task.end_date) : null;
+          const currentDate = selectedDate;
+
+          const afterStart = !startDate || currentDate >= startDate;
+          const beforeEnd = !endDate || currentDate <= endDate;
+
+          const isAssigned = !user || task.assigned_users.length === 0 || 
+                           task.assigned_users.includes(user.id) ||
+                           isAdmin;
+
+          return afterStart && beforeEnd && isAssigned;
+        }
+      });
+
+      const getStoredProfiles = () => {
+        try {
+          const stored = localStorage.getItem('app_members');
+          return stored ? JSON.parse(stored) : [];
+        } catch {
+          return [];
+        }
+      };
+
+      const profiles = getStoredProfiles();
+      const profilesMap: Record<string, string> = profiles.reduce((acc: Record<string, string>, p: { user_id: string; full_name: string }) => {
+        acc[p.user_id] = p.full_name;
+        return acc;
+      }, {});
+
+      const tasksWithCompletions: TaskWithCompletion[] = filteredTasks.map((task: Task) => {
+        const completion = allCompletions.find(
+          (c: TaskCompletion) => c.task_id === task.id && c.user_id === user?.id && c.completion_date === dateStr
+        );
+        const anyCompletion = allCompletions.find(
+          (c: TaskCompletion) => c.task_id === task.id && c.is_completed && c.completion_date === dateStr
+        );
+
+        return {
+          ...task,
+          completion,
+          completedByUser: anyCompletion ? profilesMap[anyCompletion.user_id] : undefined,
+        };
+      });
+
+      setTasks(tasksWithCompletions);
+      setIsLoading(false);
+    }, 0);
+  };
+
+  const updateTaskCompletion = (
     taskId: string, 
     isCompleted: boolean, 
     aiCountValue?: string
@@ -251,18 +316,14 @@ export const useTasks = (selectedDate: Date) => {
     }
 
     setStoredCompletions(completions);
-    fetchTasks();
-  }, [selectedDate, user, fetchTasks]);
-
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    refetch();
+  };
 
   return {
     tasks,
     isLoading,
     error,
-    refetch: fetchTasks,
+    refetch,
     updateTaskCompletion,
   };
 };
