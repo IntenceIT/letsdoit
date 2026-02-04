@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, isToday, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export interface Task {
   id: string;
@@ -34,6 +33,9 @@ export interface TaskWithCompletion extends Task {
   completedByUser?: string;
 }
 
+const TASKS_STORAGE_KEY = 'app_tasks';
+const COMPLETIONS_STORAGE_KEY = 'app_task_completions';
+
 const WEEKDAY_MAP: Record<string, number> = {
   'Sunday': 0,
   'Monday': 1,
@@ -44,14 +46,103 @@ const WEEKDAY_MAP: Record<string, number> = {
   'Saturday': 6,
 };
 
+// Helper functions for localStorage
+export const getStoredTasks = (): Task[] => {
+  try {
+    const stored = localStorage.getItem(TASKS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const setStoredTasks = (tasks: Task[]) => {
+  localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
+};
+
+export const getStoredCompletions = (): TaskCompletion[] => {
+  try {
+    const stored = localStorage.getItem(COMPLETIONS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const setStoredCompletions = (completions: TaskCompletion[]) => {
+  localStorage.setItem(COMPLETIONS_STORAGE_KEY, JSON.stringify(completions));
+};
+
+export const addTask = (task: Omit<Task, 'id' | 'created_at' | 'updated_at'>): Task => {
+  const tasks = getStoredTasks();
+  const newTask: Task = {
+    ...task,
+    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  tasks.push(newTask);
+  setStoredTasks(tasks);
+  return newTask;
+};
+
+export const updateTask = (taskId: string, updates: Partial<Task>): Task | null => {
+  const tasks = getStoredTasks();
+  const index = tasks.findIndex(t => t.id === taskId);
+  if (index === -1) return null;
+  
+  tasks[index] = {
+    ...tasks[index],
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
+  setStoredTasks(tasks);
+  return tasks[index];
+};
+
+export const deleteTask = (taskId: string): boolean => {
+  const tasks = getStoredTasks();
+  const filtered = tasks.filter(t => t.id !== taskId);
+  if (filtered.length === tasks.length) return false;
+  
+  setStoredTasks(filtered);
+  
+  // Also delete related completions
+  const completions = getStoredCompletions();
+  const filteredCompletions = completions.filter(c => c.task_id !== taskId);
+  setStoredCompletions(filteredCompletions);
+  
+  return true;
+};
+
+export const resetTaskCompletions = (taskId: string) => {
+  const completions = getStoredCompletions();
+  const updated = completions.map(c => {
+    if (c.task_id === taskId) {
+      return {
+        ...c,
+        is_completed: false,
+        ai_count_value: null,
+        completed_at: null,
+      };
+    }
+    return c;
+  });
+  setStoredCompletions(updated);
+};
+
 export const useTasks = (selectedDate: Date) => {
   const { user, isAdmin } = useAuth();
   const [tasks, setTasks] = useState<TaskWithCompletion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTasks = async () => {
-    if (!user) return;
+  const fetchTasks = useCallback(() => {
+    if (!user) {
+      setTasks([]);
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -61,20 +152,14 @@ export const useTasks = (selectedDate: Date) => {
       const dayOfWeek = selectedDate.getDay();
       const dayName = Object.keys(WEEKDAY_MAP).find(key => WEEKDAY_MAP[key] === dayOfWeek) || '';
 
-      // Fetch all tasks
-      const { data: allTasks, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*');
-
-      if (tasksError) throw tasksError;
+      const allTasks = getStoredTasks();
+      const allCompletions = getStoredCompletions();
 
       // Filter tasks based on type and date
-      const filteredTasks = (allTasks || []).filter((task: Task) => {
+      const filteredTasks = allTasks.filter((task: Task) => {
         if (task.task_type === 'permanent') {
-          // Permanent tasks show on matching weekdays
           return task.weekdays.includes(dayName);
         } else {
-          // Additional tasks show within date range
           const startDate = task.start_date ? parseISO(task.start_date) : null;
           const endDate = task.end_date ? parseISO(task.end_date) : null;
           const currentDate = selectedDate;
@@ -82,7 +167,6 @@ export const useTasks = (selectedDate: Date) => {
           const afterStart = !startDate || currentDate >= startDate;
           const beforeEnd = !endDate || currentDate <= endDate;
 
-          // Check if user is assigned (or if admin viewing all)
           const isAssigned = task.assigned_users.length === 0 || 
                            task.assigned_users.includes(user.id) ||
                            isAdmin;
@@ -91,63 +175,48 @@ export const useTasks = (selectedDate: Date) => {
         }
       });
 
-      // Fetch completions for these tasks on selected date
-      const taskIds = filteredTasks.map((t: Task) => t.id);
-      
-      if (taskIds.length > 0) {
-        const { data: completions, error: completionsError } = await supabase
-          .from('task_completions')
-          .select('*')
-          .in('task_id', taskIds)
-          .eq('completion_date', dateStr);
-
-        if (completionsError) throw completionsError;
-
-        // Fetch profiles for completed users
-        const completedUserIds = [...new Set((completions || []).filter(c => c.is_completed).map(c => c.user_id))];
-        let profilesMap: Record<string, string> = {};
-
-        if (completedUserIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('user_id, full_name')
-            .in('user_id', completedUserIds);
-
-          profilesMap = (profiles || []).reduce((acc: Record<string, string>, p: { user_id: string; full_name: string }) => {
-            acc[p.user_id] = p.full_name;
-            return acc;
-          }, {});
+      // Get user profiles from localStorage for completed user names
+      const getStoredProfiles = () => {
+        try {
+          const stored = localStorage.getItem('app_members');
+          return stored ? JSON.parse(stored) : [];
+        } catch {
+          return [];
         }
+      };
 
-        // Combine tasks with completions
-        const tasksWithCompletions: TaskWithCompletion[] = filteredTasks.map((task: Task) => {
-          const completion = (completions || []).find(
-            (c: TaskCompletion) => c.task_id === task.id && c.user_id === user.id
-          );
-          const anyCompletion = (completions || []).find(
-            (c: TaskCompletion) => c.task_id === task.id && c.is_completed
-          );
+      const profiles = getStoredProfiles();
+      const profilesMap: Record<string, string> = profiles.reduce((acc: Record<string, string>, p: { user_id: string; full_name: string }) => {
+        acc[p.user_id] = p.full_name;
+        return acc;
+      }, {});
 
-          return {
-            ...task,
-            completion,
-            completedByUser: anyCompletion ? profilesMap[anyCompletion.user_id] : undefined,
-          };
-        });
+      // Combine tasks with completions
+      const tasksWithCompletions: TaskWithCompletion[] = filteredTasks.map((task: Task) => {
+        const completion = allCompletions.find(
+          (c: TaskCompletion) => c.task_id === task.id && c.user_id === user.id && c.completion_date === dateStr
+        );
+        const anyCompletion = allCompletions.find(
+          (c: TaskCompletion) => c.task_id === task.id && c.is_completed && c.completion_date === dateStr
+        );
 
-        setTasks(tasksWithCompletions);
-      } else {
-        setTasks([]);
-      }
+        return {
+          ...task,
+          completion,
+          completedByUser: anyCompletion ? profilesMap[anyCompletion.user_id] : undefined,
+        };
+      });
+
+      setTasks(tasksWithCompletions);
     } catch (err) {
       console.error('Error fetching tasks:', err);
       setError('Failed to load tasks');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedDate, user, isAdmin]);
 
-  const updateTaskCompletion = async (
+  const updateTaskCompletion = useCallback(async (
     taskId: string, 
     isCompleted: boolean, 
     aiCountValue?: string
@@ -157,50 +226,37 @@ export const useTasks = (selectedDate: Date) => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const now = new Date().toISOString();
 
-    try {
-      // Check if completion record exists
-      const { data: existing } = await supabase
-        .from('task_completions')
-        .select('id')
-        .eq('task_id', taskId)
-        .eq('user_id', user.id)
-        .eq('completion_date', dateStr)
-        .single();
+    const completions = getStoredCompletions();
+    const existingIndex = completions.findIndex(
+      c => c.task_id === taskId && c.user_id === user.id && c.completion_date === dateStr
+    );
 
-      if (existing) {
-        // Update existing
-        await supabase
-          .from('task_completions')
-          .update({
-            is_completed: isCompleted,
-            ai_count_value: aiCountValue || null,
-            completed_at: isCompleted ? now : null,
-          })
-          .eq('id', existing.id);
-      } else {
-        // Insert new
-        await supabase
-          .from('task_completions')
-          .insert({
-            task_id: taskId,
-            user_id: user.id,
-            completion_date: dateStr,
-            is_completed: isCompleted,
-            ai_count_value: aiCountValue || null,
-            completed_at: isCompleted ? now : null,
-          });
-      }
-
-      await fetchTasks();
-    } catch (err) {
-      console.error('Error updating task completion:', err);
-      throw err;
+    if (existingIndex !== -1) {
+      completions[existingIndex] = {
+        ...completions[existingIndex],
+        is_completed: isCompleted,
+        ai_count_value: aiCountValue || null,
+        completed_at: isCompleted ? now : null,
+      };
+    } else {
+      completions.push({
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        task_id: taskId,
+        user_id: user.id,
+        completion_date: dateStr,
+        is_completed: isCompleted,
+        ai_count_value: aiCountValue || null,
+        completed_at: isCompleted ? now : null,
+      });
     }
-  };
+
+    setStoredCompletions(completions);
+    fetchTasks();
+  }, [selectedDate, user, fetchTasks]);
 
   useEffect(() => {
     fetchTasks();
-  }, [selectedDate, user]);
+  }, [fetchTasks]);
 
   return {
     tasks,
