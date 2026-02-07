@@ -43,7 +43,7 @@ const Login: React.FC = () => {
       } else {
         toast({
           title: 'Login Failed',
-          description: result.error || 'Invalid credentials',
+          description: result.error || 'Invalid email or password',
           variant: 'destructive',
         });
       }
@@ -92,7 +92,7 @@ const Login: React.FC = () => {
         <Card className="border-border/50 shadow-xl">
           <CardHeader className="text-center pb-4">
             <CardTitle className="text-xl">Welcome Back</CardTitle>
-            <CardDescription>Sign in to continue to your dashboard</CardDescription>
+            <CardDescription>Sign in with your credentials</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
@@ -108,6 +108,7 @@ const Login: React.FC = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10 h-12"
                     autoComplete="email"
+                    required
                   />
                 </div>
               </div>
@@ -124,6 +125,7 @@ const Login: React.FC = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10 pr-10 h-12"
                     autoComplete="current-password"
+                    required
                   />
                   <button
                     type="button"
@@ -157,14 +159,23 @@ const Login: React.FC = () => {
 
             {/* Admin credentials hint */}
             <div className="mt-4 p-3 bg-muted rounded-lg">
-              <p className="text-xs text-muted-foreground text-center">
-                Admin Login:
+              <p className="text-xs font-semibold text-foreground text-center mb-1">
+                Admin Login Credentials:
               </p>
-              <p className="text-xs text-muted-foreground text-center mt-1">
+              <p className="text-xs text-muted-foreground text-center">
                 Email: yasirazimshaikh5440@gmail.com
               </p>
               <p className="text-xs text-muted-foreground text-center">
                 Password: admin123456
+              </p>
+              <p className="text-xs text-primary text-center mt-2">
+                (Fixed in database)
+              </p>
+            </div>
+
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+              <p className="text-xs text-blue-700 dark:text-blue-300 text-center">
+                📱 New members receive login credentials via WhatsApp
               </p>
             </div>
           </CardContent>

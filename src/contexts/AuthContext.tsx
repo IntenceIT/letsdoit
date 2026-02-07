@@ -1,24 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-
-interface User {
-  id: string;
-  email: string;
-  full_name: string;
-}
+import { supabase } from '@/integrations/supabase/client';
+import type { User } from '@supabase/supabase-js';
+import type { Member } from '@/integrations/supabase/types';
 
 interface AuthContextType {
   user: User | null;
+  member: Member | null;
   isAdmin: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Hardcoded admin credentials
-const ADMIN_EMAIL = 'yasirazimshaikh5440@gmail.com';
-const ADMIN_PASSWORD = 'admin123456';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -30,76 +24,118 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [member, setMember] = useState<Member | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Check localStorage for existing session
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser);
-        setUser(parsed);
-        setIsAdmin(parsed.email === ADMIN_EMAIL);
-      } catch (error) {
-        console.error('Error parsing stored user:', error);
-        localStorage.removeItem('currentUser');
-      }
+  // Fetch member data based on user
+  const fetchMemberData = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('members')
+        .select('*')
+        .eq('auth_user_id', userId)
+        .single();
+
+      if (error) throw error;
+
+      setMember(data);
+      setIsAdmin(data.role === 'admin');
+    } catch (error) {
+      console.error('Error fetching member data:', error);
+      setMember(null);
+      setIsAdmin(false);
     }
-    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    // Check active session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          setUser(session.user);
+          await fetchMemberData(session.user.id);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event);
+        
+        if (session?.user) {
+          setUser(session.user);
+          await fetchMemberData(session.user.id);
+        } else {
+          setUser(null);
+          setMember(null);
+          setIsAdmin(false);
+        }
+        
+        setIsLoading(false);
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Check for admin login
-      if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-        const userData = { 
-          id: 'admin-1', 
-          email: ADMIN_EMAIL, 
-          full_name: 'Yasir Azim Shaikh' 
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        return { 
+          success: false, 
+          error: error.message 
         };
-        setUser(userData);
-        setIsAdmin(true);
-        localStorage.setItem('currentUser', JSON.stringify(userData));
-        return { success: true };
       }
 
-      // For demo purposes, accept any other email/password combination as regular user
-      if (email && password.length >= 6) {
-        const userData = { 
-          id: Date.now().toString(), 
-          email, 
-          full_name: email.split('@')[0] 
-        };
-        setUser(userData);
-        setIsAdmin(false);
-        localStorage.setItem('currentUser', JSON.stringify(userData));
-        return { success: true };
+      if (data.user) {
+        setUser(data.user);
+        await fetchMemberData(data.user.id);
       }
 
-      return { 
-        success: false, 
-        error: 'Invalid email or password. Password must be at least 6 characters.' 
-      };
-    } catch (error) {
+      return { success: true };
+    } catch (error: any) {
       console.error('Sign in error:', error);
       return { 
         success: false, 
-        error: 'An error occurred during sign in' 
+        error: error.message || 'An error occurred during sign in' 
       };
     }
   };
 
-  const signOut = () => {
-    setUser(null);
-    setIsAdmin(false);
-    localStorage.removeItem('currentUser');
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setMember(null);
+      setIsAdmin(false);
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        member,
         isAdmin,
         isLoading,
         signIn,

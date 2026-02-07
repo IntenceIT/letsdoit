@@ -79,7 +79,7 @@ const AddMember: React.FC = () => {
     return null;
   };
 
-  const sendWhatsAppInvitation = () => {
+  const sendWhatsAppInvitation = (memberEmail: string, memberPassword: string, memberName: string) => {
     if (!mobileNumber || !validatePhoneNumber(mobileNumber)) {
       toast({
         title: 'Invalid Phone Number',
@@ -90,9 +90,9 @@ const AddMember: React.FC = () => {
     }
 
     const messageData: WhatsAppMessageData = {
-      memberName: fullName.trim(),
-      memberEmail: email.trim(),
-      memberPassword: password,
+      memberName: memberName,
+      memberEmail: memberEmail,
+      memberPassword: memberPassword,
       memberPhone: mobileNumber,
       adminName: currentMember?.full_name || 'Admin',
       appUrl: window.location.origin,
@@ -103,7 +103,7 @@ const AddMember: React.FC = () => {
 
     toast({
       title: 'WhatsApp Opened',
-      description: 'WhatsApp opened with pre-filled message. Just click Send!',
+      description: 'WhatsApp opened with credentials. Please click Send!',
     });
   };
 
@@ -138,35 +138,54 @@ const AddMember: React.FC = () => {
           description: 'Member information has been updated successfully',
         });
       } else {
-        // Create new member via Supabase Auth
-        const { data, error } = await supabase.auth.signUp({
+        // Step 1: Create auth user with Supabase Auth
+        const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
           options: {
             data: {
               full_name: fullName.trim(),
             },
+            emailRedirectTo: `${window.location.origin}/login`,
           },
         });
 
-        if (error) throw error;
+        if (signUpError) throw signUpError;
+
+        if (!authData.user) {
+          throw new Error('Failed to create user account');
+        }
+
+        // Step 2: Update member record with mobile number and ensure organization
+        const { error: updateError } = await supabase
+          .from('members')
+          .update({
+            mobile_number: mobileNumber || null,
+            organization_id: currentMember?.organization_id,
+          })
+          .eq('auth_user_id', authData.user.id);
+
+        if (updateError) {
+          console.error('Error updating member:', updateError);
+          // Don't throw - member was created by trigger
+        }
 
         toast({
           title: 'Member Created',
-          description: 'New member has been added successfully',
+          description: 'New member account has been created successfully',
         });
 
-        // Show WhatsApp option if mobile number provided
+        // Step 3: Send WhatsApp invitation with credentials
         if (mobileNumber && validatePhoneNumber(mobileNumber)) {
-          // Auto-open WhatsApp after successful creation
           setTimeout(() => {
-            sendWhatsAppInvitation();
+            sendWhatsAppInvitation(email.trim(), password, fullName.trim());
           }, 1000);
         }
       }
 
       navigate('/members');
     } catch (error: any) {
+      console.error('Error saving member:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to save member',
@@ -274,7 +293,7 @@ const AddMember: React.FC = () => {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Required for WhatsApp invitation
+                  Required for WhatsApp invitation with credentials
                 </p>
               </div>
 
@@ -316,7 +335,7 @@ const AddMember: React.FC = () => {
                     </button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Auto-generated secure password
+                    This password will be sent via WhatsApp
                   </p>
                 </div>
               )}
@@ -325,7 +344,7 @@ const AddMember: React.FC = () => {
         </motion.div>
 
         {/* WhatsApp Preview Card */}
-        {!isEditing && mobileNumber && validatePhoneNumber(mobileNumber) && (
+        {!isEditing && mobileNumber && validatePhoneNumber(mobileNumber) && fullName && email && password && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -335,7 +354,7 @@ const AddMember: React.FC = () => {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-green-600" />
-                  WhatsApp Invitation Preview
+                  WhatsApp Message Preview
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -343,26 +362,18 @@ const AddMember: React.FC = () => {
                   <div className="font-medium text-green-600 mb-1">To: +91{mobileNumber}</div>
                   <div className="whitespace-pre-line text-gray-700 dark:text-gray-300">
                     {generateWhatsAppMessage({
-                      memberName: fullName || 'Member',
-                      memberEmail: email || 'email@example.com',
-                      memberPassword: password || 'password',
+                      memberName: fullName,
+                      memberEmail: email,
+                      memberPassword: password,
                       memberPhone: mobileNumber,
                       adminName: currentMember?.full_name || 'Admin',
                       appUrl: window.location.origin,
                     })}
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={sendWhatsAppInvitation}
-                  className="w-full border-green-300 text-green-700 hover:bg-green-50"
-                  disabled={!fullName || !email || !password}
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  Send WhatsApp Message Now
-                </Button>
+                <p className="text-xs text-green-700 dark:text-green-300">
+                  ✓ Credentials will be sent automatically after member creation
+                </p>
               </CardContent>
             </Card>
           </motion.div>
@@ -380,12 +391,12 @@ const AddMember: React.FC = () => {
                 <MessageSquare className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-foreground">
-                    WhatsApp Integration
+                    Automatic WhatsApp Integration
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {isEditing
-                      ? "Update member details and optionally send WhatsApp notification."
-                      : "After creating the member, WhatsApp will open with pre-filled credentials message. Just click Send!"}
+                      ? "Update member details. Password cannot be changed after creation."
+                      : "After creating the member, their login credentials (email & password) will be automatically sent to their WhatsApp. They can use these credentials to login immediately!"}
                   </p>
                 </div>
               </div>
@@ -407,12 +418,12 @@ const AddMember: React.FC = () => {
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {isEditing ? 'Updating...' : 'Creating...'}
+                {isEditing ? 'Updating...' : 'Creating & Sending...'}
               </>
             ) : (
               <>
                 <Save className="w-4 h-4 mr-2" />
-                {isEditing ? 'Update Member' : 'Create Member & Send WhatsApp'}
+                {isEditing ? 'Update Member' : 'Create & Send Credentials'}
               </>
             )}
           </Button>
