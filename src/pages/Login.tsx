@@ -154,6 +154,19 @@ const Login: React.FC = () => {
                 )}
               </Button>
             </form>
+
+            {/* Admin credentials hint */}
+            <div className="mt-4 p-3 bg-muted rounded-lg">
+              <p className="text-xs text-muted-foreground text-center">
+                Admin Login:
+              </p>
+              <p className="text-xs text-muted-foreground text-center mt-1">
+                Email: yasirazimshaikh5440@gmail.com
+              </p>
+              <p className="text-xs text-muted-foreground text-center">
+                Password: admin123456
+              </p>
+            </div>
           </CardContent>
         </Card>
 

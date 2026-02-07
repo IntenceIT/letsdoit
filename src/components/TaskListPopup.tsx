@@ -8,14 +8,14 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { TaskWithCompletion } from '@/hooks/useTasks';
+import { TaskWithAssignment } from '@/hooks/useTasks';
 import { cn } from '@/lib/utils';
 
 interface TaskListPopupProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  tasks: TaskWithCompletion[];
+  tasks: TaskWithAssignment[];
   type: 'done' | 'pending';
 }
 

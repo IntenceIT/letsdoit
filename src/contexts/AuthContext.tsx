@@ -16,10 +16,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Hardcoded users (NOT SECURE - for demo only)
-const USERS = [
-  { id: '1', email: 'yasirazimshaikh5440@gmail.com', password: 'yasirs2412', full_name: 'Yasir', role: 'admin' },
-];
+// Hardcoded admin credentials
+const ADMIN_EMAIL = 'yasirazimshaikh5440@gmail.com';
+const ADMIN_PASSWORD = 'admin123456';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -38,35 +37,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check localStorage for existing session
     const storedUser = localStorage.getItem('currentUser');
     if (storedUser) {
-      const parsed = JSON.parse(storedUser);
-      setUser(parsed);
-      setIsAdmin(parsed.email === 'yasirazimshaikh5440@gmail.com');
+      try {
+        const parsed = JSON.parse(storedUser);
+        setUser(parsed);
+        setIsAdmin(parsed.email === ADMIN_EMAIL);
+      } catch (error) {
+        console.error('Error parsing stored user:', error);
+        localStorage.removeItem('currentUser');
+      }
     }
     setIsLoading(false);
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    // Check hardcoded admin
-    const adminUser = USERS.find(u => u.email === email && u.password === password);
-    
-    if (adminUser) {
-      const userData = { id: adminUser.id, email: adminUser.email, full_name: adminUser.full_name };
-      setUser(userData);
-      setIsAdmin(true);
-      localStorage.setItem('currentUser', JSON.stringify(userData));
-      return { success: true };
-    }
+    try {
+      // Check for admin login
+      if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+        const userData = { 
+          id: 'admin-1', 
+          email: ADMIN_EMAIL, 
+          full_name: 'Yasir Azim Shaikh' 
+        };
+        setUser(userData);
+        setIsAdmin(true);
+        localStorage.setItem('currentUser', JSON.stringify(userData));
+        return { success: true };
+      }
 
-    // For any other email/password, treat as regular user (demo mode)
-    if (email && password.length >= 6) {
-      const userData = { id: Date.now().toString(), email, full_name: email.split('@')[0] };
-      setUser(userData);
-      setIsAdmin(false);
-      localStorage.setItem('currentUser', JSON.stringify(userData));
-      return { success: true };
-    }
+      // For demo purposes, accept any other email/password combination as regular user
+      if (email && password.length >= 6) {
+        const userData = { 
+          id: Date.now().toString(), 
+          email, 
+          full_name: email.split('@')[0] 
+        };
+        setUser(userData);
+        setIsAdmin(false);
+        localStorage.setItem('currentUser', JSON.stringify(userData));
+        return { success: true };
+      }
 
-    return { success: false, error: 'Invalid credentials. Password must be at least 6 characters.' };
+      return { 
+        success: false, 
+        error: 'Invalid email or password. Password must be at least 6 characters.' 
+      };
+    } catch (error) {
+      console.error('Sign in error:', error);
+      return { 
+        success: false, 
+        error: 'An error occurred during sign in' 
+      };
+    }
   };
 
   const signOut = () => {

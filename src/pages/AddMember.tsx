@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Save, Loader2, User, Mail, Phone, Lock, Eye, EyeOff, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, User, Mail, Phone, Lock, Eye, EyeOff, MessageSquare, Send } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import BottomNav from '@/components/BottomNav';
@@ -10,13 +10,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Member } from '@/hooks/useMembers';
+import { 
+  generateWhatsAppMessage, 
+  openWhatsAppWithMessage, 
+  generateMemberCredentials,
+  validatePhoneNumber,
+  type WhatsAppMessageData 
+} from '@/lib/whatsapp';
+import type { Member } from '@/integrations/supabase/types';
 
 const AddMember: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
+  const { isAdmin, member: currentMember } = useAuth();
 
   // Get edit member from navigation state
   const editMember = (location.state as { editMember?: Member })?.editMember;
@@ -24,10 +31,17 @@ const AddMember: React.FC = () => {
 
   const [fullName, setFullName] = useState(editMember?.full_name || '');
   const [email, setEmail] = useState(editMember?.email || '');
-  const [mobileNumber, setMobileNumber] = useState(editMember?.mobile_number || '+91');
+  const [mobileNumber, setMobileNumber] = useState(editMember?.mobile_number || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Auto-generate password for new members
+  useEffect(() => {
+    if (!isEditing && !password) {
+      setPassword(generateMemberCredentials());
+    }
+  }, [isEditing, password]);
 
   // Redirect non-admins
   useEffect(() => {
@@ -37,12 +51,12 @@ const AddMember: React.FC = () => {
   }, [isAdmin, navigate]);
 
   const formatPhoneNumber = (value: string) => {
-    // Remove all non-digits except +
-    let cleaned = value.replace(/[^\d+]/g, '');
+    // Remove all non-digits
+    let cleaned = value.replace(/\D/g, '');
     
-    // Ensure it starts with +91
-    if (!cleaned.startsWith('+91')) {
-      cleaned = '+91' + cleaned.replace(/^\+/, '');
+    // Limit to 10 digits for Indian numbers
+    if (cleaned.length > 10) {
+      cleaned = cleaned.slice(-10);
     }
     
     return cleaned;
@@ -59,7 +73,38 @@ const AddMember: React.FC = () => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Invalid email format';
     if (!isEditing && !password) return 'Password is required';
     if (!isEditing && password.length < 6) return 'Password must be at least 6 characters';
+    if (mobileNumber && !validatePhoneNumber(mobileNumber)) {
+      return 'Please enter a valid 10-digit mobile number';
+    }
     return null;
+  };
+
+  const sendWhatsAppInvitation = () => {
+    if (!mobileNumber || !validatePhoneNumber(mobileNumber)) {
+      toast({
+        title: 'Invalid Phone Number',
+        description: 'Please enter a valid mobile number to send WhatsApp message',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const messageData: WhatsAppMessageData = {
+      memberName: fullName.trim(),
+      memberEmail: email.trim(),
+      memberPassword: password,
+      memberPhone: mobileNumber,
+      adminName: currentMember?.full_name || 'Admin',
+      appUrl: window.location.origin,
+    };
+
+    const message = generateWhatsAppMessage(messageData);
+    openWhatsAppWithMessage(mobileNumber, message);
+
+    toast({
+      title: 'WhatsApp Opened',
+      description: 'WhatsApp opened with pre-filled message. Just click Send!',
+    });
   };
 
   const handleSubmit = async () => {
@@ -77,33 +122,23 @@ const AddMember: React.FC = () => {
 
     try {
       if (isEditing && editMember) {
-        // Update existing member profile
+        // Update existing member
         const { error } = await supabase
-          .from('profiles')
+          .from('members')
           .update({
             full_name: fullName.trim(),
-            email: email.trim(),
-            mobile_number: mobileNumber.length > 3 ? mobileNumber : null,
+            mobile_number: mobileNumber || null,
           })
-          .eq('user_id', editMember.user_id);
+          .eq('id', editMember.id);
 
         if (error) throw error;
 
         toast({
           title: 'Member Updated',
-          description: 'Member information has been updated',
+          description: 'Member information has been updated successfully',
         });
-
-        // Offer to send SMS with updated info
-        if (mobileNumber.length > 3) {
-          const sendSMS = window.confirm('Send SMS with updated credentials?');
-          if (sendSMS) {
-            const message = `Your TaskFlow credentials have been updated:\nEmail: ${email}\nPlease contact admin for password if needed.`;
-            window.open(`sms:${mobileNumber}?body=${encodeURIComponent(message)}`);
-          }
-        }
       } else {
-        // Create new user via Supabase Auth
+        // Create new member via Supabase Auth
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -111,29 +146,22 @@ const AddMember: React.FC = () => {
             data: {
               full_name: fullName.trim(),
             },
-            emailRedirectTo: window.location.origin,
           },
         });
 
         if (error) throw error;
-
-        // Update mobile number in profile if provided
-        if (data.user && mobileNumber.length > 3) {
-          await supabase
-            .from('profiles')
-            .update({ mobile_number: mobileNumber })
-            .eq('user_id', data.user.id);
-        }
 
         toast({
           title: 'Member Created',
           description: 'New member has been added successfully',
         });
 
-        // Open SMS app with credentials
-        if (mobileNumber.length > 3) {
-          const message = `Welcome to TaskFlow!\nYour login credentials:\nEmail: ${email}\nPassword: ${password}\n\nPlease login and change your password.`;
-          window.open(`sms:${mobileNumber}?body=${encodeURIComponent(message)}`);
+        // Show WhatsApp option if mobile number provided
+        if (mobileNumber && validatePhoneNumber(mobileNumber)) {
+          // Auto-open WhatsApp after successful creation
+          setTimeout(() => {
+            sendWhatsAppInvitation();
+          }, 1000);
         }
       }
 
@@ -147,6 +175,14 @@ const AddMember: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const regeneratePassword = () => {
+    setPassword(generateMemberCredentials());
+    toast({
+      title: 'Password Generated',
+      description: 'New password has been generated',
+    });
   };
 
   if (!isAdmin) return null;
@@ -224,30 +260,45 @@ const AddMember: React.FC = () => {
 
               {/* Mobile Number */}
               <div className="space-y-2">
-                <Label htmlFor="mobile">Mobile Number</Label>
+                <Label htmlFor="mobile">Mobile Number *</Label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="mobile"
                     type="tel"
-                    placeholder="+91 XXXXXXXXXX"
+                    placeholder="Enter 10-digit mobile number"
                     value={mobileNumber}
                     onChange={handleMobileChange}
                     className="pl-10"
+                    maxLength={10}
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Required for WhatsApp invitation
+                </p>
               </div>
 
               {/* Password (only for new members) */}
               {!isEditing && (
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password *</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password *</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={regeneratePassword}
+                      className="text-xs h-6 px-2"
+                    >
+                      Generate New
+                    </Button>
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="Enter password"
+                      placeholder="Auto-generated password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="pl-10 pr-10"
@@ -265,7 +316,7 @@ const AddMember: React.FC = () => {
                     </button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Minimum 6 characters
+                    Auto-generated secure password
                   </p>
                 </div>
               )}
@@ -273,11 +324,55 @@ const AddMember: React.FC = () => {
           </Card>
         </motion.div>
 
+        {/* WhatsApp Preview Card */}
+        {!isEditing && mobileNumber && validatePhoneNumber(mobileNumber) && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-green-600" />
+                  WhatsApp Invitation Preview
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border text-sm">
+                  <div className="font-medium text-green-600 mb-1">To: +91{mobileNumber}</div>
+                  <div className="whitespace-pre-line text-gray-700 dark:text-gray-300">
+                    {generateWhatsAppMessage({
+                      memberName: fullName || 'Member',
+                      memberEmail: email || 'email@example.com',
+                      memberPassword: password || 'password',
+                      memberPhone: mobileNumber,
+                      adminName: currentMember?.full_name || 'Admin',
+                      appUrl: window.location.origin,
+                    })}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={sendWhatsAppInvitation}
+                  className="w-full border-green-300 text-green-700 hover:bg-green-50"
+                  disabled={!fullName || !email || !password}
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Send WhatsApp Message Now
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
         {/* Info Card */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: 0.2 }}
         >
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="p-4">
@@ -285,12 +380,12 @@ const AddMember: React.FC = () => {
                 <MessageSquare className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-foreground">
-                    SMS Notification
+                    WhatsApp Integration
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {isEditing
-                      ? "After saving, you'll be prompted to send updated credentials via SMS."
-                      : "After creating the member, you'll be prompted to send login credentials via SMS."}
+                      ? "Update member details and optionally send WhatsApp notification."
+                      : "After creating the member, WhatsApp will open with pre-filled credentials message. Just click Send!"}
                   </p>
                 </div>
               </div>
@@ -302,7 +397,7 @@ const AddMember: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.3 }}
         >
           <Button
             onClick={handleSubmit}
@@ -317,7 +412,7 @@ const AddMember: React.FC = () => {
             ) : (
               <>
                 <Save className="w-4 h-4 mr-2" />
-                {isEditing ? 'Update Member' : 'Create Member'}
+                {isEditing ? 'Update Member' : 'Create Member & Send WhatsApp'}
               </>
             )}
           </Button>

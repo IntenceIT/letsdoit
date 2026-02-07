@@ -18,15 +18,15 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { TaskWithCompletion } from '@/hooks/useTasks';
+import { TaskWithAssignment } from '@/hooks/useTasks';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, isToday, parseISO } from 'date-fns';
 
 interface TaskCardProps {
-  task: TaskWithCompletion;
+  task: TaskWithAssignment;
   selectedDate: Date;
   onComplete: (taskId: string, isCompleted: boolean, aiCountValue?: string) => Promise<void>;
-  onEdit?: (task: TaskWithCompletion) => void;
+  onEdit?: (task: TaskWithAssignment) => void;
   onDelete?: (taskId: string) => void;
 }
 
@@ -43,7 +43,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   const [aiCountValue, setAiCountValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const isCompleted = task.completion?.is_completed ?? false;
+  const isCompleted = task.assignment?.completion_status === 'completed';
   const canEdit = isToday(selectedDate) || isAdmin;
   const isPastDate = !isToday(selectedDate) && selectedDate < new Date();
 
@@ -119,7 +119,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                           isCompleted && "line-through text-muted-foreground"
                         )}
                       >
-                        {task.title}
+                        {task.task_title}
                       </h3>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <Badge
@@ -179,23 +179,23 @@ const TaskCard: React.FC<TaskCardProps> = ({
                   </div>
 
                   {/* Completion info */}
-                  {isCompleted && task.completion && (
+                  {isCompleted && task.assignment && (
                     <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                       <Clock className="w-3 h-3" />
                       <span>
                         Completed
                         {task.completedByUser && ` by ${task.completedByUser}`}
-                        {task.completion.completed_at &&
-                          ` at ${format(parseISO(task.completion.completed_at), 'h:mm a')}`}
+                        {task.assignment.completed_at &&
+                          ` at ${format(parseISO(task.assignment.completed_at), 'h:mm a')}`}
                       </span>
                     </div>
                   )}
 
                   {/* AI Count value display */}
-                  {isCompleted && task.requires_ai_count && task.completion?.ai_count_value && (
+                  {isCompleted && task.requires_ai_count && task.assignment?.ai_count_value && (
                     <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                       <Brain className="w-3 h-3" />
-                      <span>AI Count: {task.completion.ai_count_value}</span>
+                      <span>AI Count: {task.assignment.ai_count_value}</span>
                     </div>
                   )}
                 </div>
@@ -204,10 +204,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
               {/* Collapsible details */}
               <CollapsibleContent className="mt-3">
                 <div className="pl-9 space-y-2 text-sm">
-                  {task.description && (
+                  {task.task_description && (
                     <div>
                       <span className="font-medium text-muted-foreground">Description:</span>
-                      <p className="mt-1 text-foreground">{task.description}</p>
+                      <p className="mt-1 text-foreground">{task.task_description}</p>
                     </div>
                   )}
                   {task.remarks && (

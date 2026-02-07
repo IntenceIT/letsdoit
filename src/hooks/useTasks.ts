@@ -1,40 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
+import type { Task, TaskAssignment, Member } from '@/integrations/supabase/types';
 
-export interface Task {
-  id: string;
-  title: string;
-  description: string | null;
-  remarks: string | null;
-  task_type: 'permanent' | 'additional';
-  requires_ai_count: boolean;
-  weekdays: string[];
-  start_date: string | null;
-  end_date: string | null;
-  assigned_users: string[];
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TaskCompletion {
-  id: string;
-  task_id: string;
-  user_id: string;
-  completion_date: string;
-  is_completed: boolean;
-  ai_count_value: string | null;
-  completed_at: string | null;
-}
-
-export interface TaskWithCompletion extends Task {
-  completion?: TaskCompletion;
+export interface TaskWithAssignment extends Task {
+  assignment?: TaskAssignment;
   completedByUser?: string;
 }
-
-const TASKS_STORAGE_KEY = 'app_tasks';
-const COMPLETIONS_STORAGE_KEY = 'app_task_completions';
 
 const WEEKDAY_MAP: Record<string, number> = {
   'Sunday': 0,
@@ -46,285 +19,231 @@ const WEEKDAY_MAP: Record<string, number> = {
   'Saturday': 6,
 };
 
-// Helper functions for localStorage
-export const getStoredTasks = (): Task[] => {
-  try {
-    const stored = localStorage.getItem(TASKS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-};
-
-export const setStoredTasks = (tasks: Task[]) => {
-  localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
-};
-
-export const getStoredCompletions = (): TaskCompletion[] => {
-  try {
-    const stored = localStorage.getItem(COMPLETIONS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-};
-
-export const setStoredCompletions = (completions: TaskCompletion[]) => {
-  localStorage.setItem(COMPLETIONS_STORAGE_KEY, JSON.stringify(completions));
-};
-
-export const addTask = (task: Omit<Task, 'id' | 'created_at' | 'updated_at'>): Task => {
-  const tasks = getStoredTasks();
-  const newTask: Task = {
-    ...task,
-    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  tasks.push(newTask);
-  setStoredTasks(tasks);
-  return newTask;
-};
-
-export const updateTask = (taskId: string, updates: Partial<Task>): Task | null => {
-  const tasks = getStoredTasks();
-  const index = tasks.findIndex(t => t.id === taskId);
-  if (index === -1) return null;
-  
-  tasks[index] = {
-    ...tasks[index],
-    ...updates,
-    updated_at: new Date().toISOString(),
-  };
-  setStoredTasks(tasks);
-  return tasks[index];
-};
-
-export const deleteTask = (taskId: string): boolean => {
-  const tasks = getStoredTasks();
-  const filtered = tasks.filter(t => t.id !== taskId);
-  if (filtered.length === tasks.length) return false;
-  
-  setStoredTasks(filtered);
-  
-  // Also delete related completions
-  const completions = getStoredCompletions();
-  const filteredCompletions = completions.filter(c => c.task_id !== taskId);
-  setStoredCompletions(filteredCompletions);
-  
-  return true;
-};
-
-export const resetTaskCompletions = (taskId: string) => {
-  const completions = getStoredCompletions();
-  const updated = completions.map(c => {
-    if (c.task_id === taskId) {
-      return {
-        ...c,
-        is_completed: false,
-        ai_count_value: null,
-        completed_at: null,
-      };
-    }
-    return c;
-  });
-  setStoredCompletions(updated);
-};
-
 export const useTasks = (selectedDate: Date) => {
-  const { user, isAdmin } = useAuth();
-  const [tasks, setTasks] = useState<TaskWithCompletion[]>([]);
+  const { user, member, isAdmin } = useAuth();
+  const [tasks, setTasks] = useState<TaskWithAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user) {
+  const fetchTasks = async () => {
+    if (!user || !member) {
       setTasks([]);
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-
     try {
+      setIsLoading(true);
+      setError(null);
+
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       const dayOfWeek = selectedDate.getDay();
       const dayName = Object.keys(WEEKDAY_MAP).find(key => WEEKDAY_MAP[key] === dayOfWeek) || '';
 
-      const allTasks = getStoredTasks();
-      const allCompletions = getStoredCompletions();
+      // Fetch all tasks for the organization
+      const { data: allTasks, error: tasksError } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('organization_id', member.organization_id);
+
+      if (tasksError) throw tasksError;
 
       // Filter tasks based on type and date
-      const filteredTasks = allTasks.filter((task: Task) => {
+      const filteredTasks = (allTasks || []).filter((task: Task) => {
         if (task.task_type === 'permanent') {
-          return task.weekdays.includes(dayName);
+          return task.weekdays?.includes(dayName);
         } else {
-          const startDate = task.start_date ? parseISO(task.start_date) : null;
-          const endDate = task.end_date ? parseISO(task.end_date) : null;
+          const startDate = task.start_date ? new Date(task.start_date) : null;
+          const endDate = task.end_date ? new Date(task.end_date) : null;
           const currentDate = selectedDate;
 
           const afterStart = !startDate || currentDate >= startDate;
           const beforeEnd = !endDate || currentDate <= endDate;
 
-          const isAssigned = task.assigned_users.length === 0 || 
-                           task.assigned_users.includes(user.id) ||
-                           isAdmin;
-
-          return afterStart && beforeEnd && isAssigned;
+          return afterStart && beforeEnd;
         }
       });
 
-      // Get user profiles from localStorage for completed user names
-      const getStoredProfiles = () => {
-        try {
-          const stored = localStorage.getItem('app_members');
-          return stored ? JSON.parse(stored) : [];
-        } catch {
-          return [];
-        }
-      };
+      // Fetch task assignments for the current user and date
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('task_assignments')
+        .select('*')
+        .eq('member_id', member.id)
+        .eq('assigned_date', dateStr)
+        .in('task_id', filteredTasks.map(t => t.id));
 
-      const profiles = getStoredProfiles();
-      const profilesMap: Record<string, string> = profiles.reduce((acc: Record<string, string>, p: { user_id: string; full_name: string }) => {
-        acc[p.user_id] = p.full_name;
-        return acc;
-      }, {});
+      if (assignmentsError) throw assignmentsError;
 
-      // Combine tasks with completions
-      const tasksWithCompletions: TaskWithCompletion[] = filteredTasks.map((task: Task) => {
-        const completion = allCompletions.find(
-          (c: TaskCompletion) => c.task_id === task.id && c.user_id === user.id && c.completion_date === dateStr
-        );
-        const anyCompletion = allCompletions.find(
-          (c: TaskCompletion) => c.task_id === task.id && c.is_completed && c.completion_date === dateStr
+      // Fetch all assignments for the date to see who completed tasks
+      const { data: allAssignments, error: allAssignmentsError } = await supabase
+        .from('task_assignments')
+        .select(`
+          *,
+          members!inner(full_name)
+        `)
+        .eq('assigned_date', dateStr)
+        .eq('completion_status', 'completed')
+        .in('task_id', filteredTasks.map(t => t.id));
+
+      if (allAssignmentsError) throw allAssignmentsError;
+
+      // Create a map of completed tasks to user names
+      const completedByMap: Record<string, string> = {};
+      (allAssignments || []).forEach((assignment: any) => {
+        completedByMap[assignment.task_id] = assignment.members.full_name;
+      });
+
+      // Combine tasks with assignments
+      const tasksWithAssignments: TaskWithAssignment[] = filteredTasks.map((task: Task) => {
+        const assignment = (assignments || []).find(
+          (a: TaskAssignment) => a.task_id === task.id
         );
 
         return {
           ...task,
-          completion,
-          completedByUser: anyCompletion ? profilesMap[anyCompletion.user_id] : undefined,
+          assignment,
+          completedByUser: completedByMap[task.id],
         };
       });
 
-      setTasks(tasksWithCompletions);
-    } catch (err) {
+      setTasks(tasksWithAssignments);
+    } catch (err: any) {
       console.error('Error fetching tasks:', err);
-      setError('Failed to load tasks');
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDate, user, isAdmin]);
-
-  const refetch = () => {
-    // Trigger re-render by updating a dependency - we'll use a workaround
-    setIsLoading(true);
-    setTimeout(() => {
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const dayOfWeek = selectedDate.getDay();
-      const dayName = Object.keys(WEEKDAY_MAP).find(key => WEEKDAY_MAP[key] === dayOfWeek) || '';
-
-      const allTasks = getStoredTasks();
-      const allCompletions = getStoredCompletions();
-
-      const filteredTasks = allTasks.filter((task: Task) => {
-        if (task.task_type === 'permanent') {
-          return task.weekdays.includes(dayName);
-        } else {
-          const startDate = task.start_date ? parseISO(task.start_date) : null;
-          const endDate = task.end_date ? parseISO(task.end_date) : null;
-          const currentDate = selectedDate;
-
-          const afterStart = !startDate || currentDate >= startDate;
-          const beforeEnd = !endDate || currentDate <= endDate;
-
-          const isAssigned = !user || task.assigned_users.length === 0 || 
-                           task.assigned_users.includes(user.id) ||
-                           isAdmin;
-
-          return afterStart && beforeEnd && isAssigned;
-        }
-      });
-
-      const getStoredProfiles = () => {
-        try {
-          const stored = localStorage.getItem('app_members');
-          return stored ? JSON.parse(stored) : [];
-        } catch {
-          return [];
-        }
-      };
-
-      const profiles = getStoredProfiles();
-      const profilesMap: Record<string, string> = profiles.reduce((acc: Record<string, string>, p: { user_id: string; full_name: string }) => {
-        acc[p.user_id] = p.full_name;
-        return acc;
-      }, {});
-
-      const tasksWithCompletions: TaskWithCompletion[] = filteredTasks.map((task: Task) => {
-        const completion = allCompletions.find(
-          (c: TaskCompletion) => c.task_id === task.id && c.user_id === user?.id && c.completion_date === dateStr
-        );
-        const anyCompletion = allCompletions.find(
-          (c: TaskCompletion) => c.task_id === task.id && c.is_completed && c.completion_date === dateStr
-        );
-
-        return {
-          ...task,
-          completion,
-          completedByUser: anyCompletion ? profilesMap[anyCompletion.user_id] : undefined,
-        };
-      });
-
-      setTasks(tasksWithCompletions);
-      setIsLoading(false);
-    }, 0);
   };
 
-  const updateTaskCompletion = (
+  useEffect(() => {
+    fetchTasks();
+  }, [selectedDate, user, member]);
+
+  const updateTaskCompletion = async (
     taskId: string, 
     isCompleted: boolean, 
     aiCountValue?: string
   ) => {
-    if (!user) return;
+    if (!user || !member) return;
 
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const now = new Date().toISOString();
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const now = new Date().toISOString();
 
-    const completions = getStoredCompletions();
-    const existingIndex = completions.findIndex(
-      c => c.task_id === taskId && c.user_id === user.id && c.completion_date === dateStr
-    );
+      const { data, error } = await supabase
+        .from('task_assignments')
+        .upsert({
+          task_id: taskId,
+          member_id: member.id,
+          assigned_date: dateStr,
+          completion_status: isCompleted ? 'completed' : 'pending',
+          ai_count_value: aiCountValue || null,
+          completed_at: isCompleted ? now : null,
+        })
+        .select()
+        .single();
 
-    if (existingIndex !== -1) {
-      completions[existingIndex] = {
-        ...completions[existingIndex],
-        is_completed: isCompleted,
-        ai_count_value: aiCountValue || null,
-        completed_at: isCompleted ? now : null,
-      };
-    } else {
-      completions.push({
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        task_id: taskId,
-        user_id: user.id,
-        completion_date: dateStr,
-        is_completed: isCompleted,
-        ai_count_value: aiCountValue || null,
-        completed_at: isCompleted ? now : null,
-      });
+      if (error) throw error;
+
+      // Update local state
+      setTasks(prev => prev.map(task => 
+        task.id === taskId 
+          ? { ...task, assignment: data }
+          : task
+      ));
+    } catch (err: any) {
+      console.error('Error updating task completion:', err);
+      throw err;
+    }
+  };
+
+  const createTask = async (taskData: {
+    task_title: string;
+    task_description?: string;
+    remarks?: string;
+    task_type: 'permanent' | 'additional';
+    requires_ai_count?: boolean;
+    weekdays?: string[];
+    start_date?: string;
+    end_date?: string;
+  }) => {
+    if (!isAdmin || !member) {
+      throw new Error('Only admins can create tasks');
     }
 
-    setStoredCompletions(completions);
-    refetch();
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert([{
+          ...taskData,
+          organization_id: member.organization_id,
+          assigned_by_admin: user?.id,
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await fetchTasks();
+      return data;
+    } catch (err: any) {
+      console.error('Error creating task:', err);
+      throw err;
+    }
+  };
+
+  const updateTask = async (taskId: string, updates: Partial<Task>) => {
+    if (!isAdmin) {
+      throw new Error('Only admins can update tasks');
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .update(updates)
+        .eq('id', taskId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await fetchTasks();
+      return data;
+    } catch (err: any) {
+      console.error('Error updating task:', err);
+      throw err;
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    if (!isAdmin) {
+      throw new Error('Only admins can delete tasks');
+    }
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) throw error;
+
+      await fetchTasks();
+    } catch (err: any) {
+      console.error('Error deleting task:', err);
+      throw err;
+    }
   };
 
   return {
     tasks,
     isLoading,
     error,
-    refetch,
+    refetch: fetchTasks,
     updateTaskCompletion,
+    createTask,
+    updateTask,
+    deleteTask,
   };
 };
 
@@ -332,12 +251,12 @@ export const useTaskStats = (selectedDate: Date) => {
   const { tasks, isLoading } = useTasks(selectedDate);
 
   const totalTasks = tasks.length;
-  const doneTasks = tasks.filter(t => t.completion?.is_completed).length;
+  const doneTasks = tasks.filter(t => t.assignment?.completion_status === 'completed').length;
   const pendingTasks = totalTasks - doneTasks;
   const completionPercentage = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-  const doneTasksList = tasks.filter(t => t.completion?.is_completed);
-  const pendingTasksList = tasks.filter(t => !t.completion?.is_completed);
+  const doneTasksList = tasks.filter(t => t.assignment?.completion_status === 'completed');
+  const pendingTasksList = tasks.filter(t => t.assignment?.completion_status !== 'completed');
 
   return {
     totalTasks,

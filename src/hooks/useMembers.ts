@@ -1,87 +1,126 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-
-export interface Member {
-  id: string;
-  user_id: string;
-  email: string;
-  full_name: string;
-  mobile_number: string | null;
-  created_at: string;
-  role?: string;
-}
+import { useAuth } from '@/contexts/AuthContext';
+import type { Member } from '@/integrations/supabase/types';
 
 export const useMembers = () => {
   const [members, setMembers] = useState<Member[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user, isAdmin } = useAuth();
 
   const fetchMembers = async () => {
-    setIsLoading(true);
-    setError(null);
+    if (!user) return;
 
     try {
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
+      setLoading(true);
+      setError(null);
+
+      const { data, error: fetchError } = await supabase
+        .from('members')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (profilesError) throw profilesError;
+      if (fetchError) {
+        throw fetchError;
+      }
 
-      // Fetch roles for all users
-      const userIds = (profiles || []).map(p => p.user_id);
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('user_id, role')
-        .in('user_id', userIds);
-
-      const rolesMap: Record<string, string> = (roles || []).reduce(
-        (acc: Record<string, string>, r: { user_id: string; role: string }) => {
-          acc[r.user_id] = r.role;
-          return acc;
-        }, 
-        {}
-      );
-
-      const membersWithRoles = (profiles || []).map(p => ({
-        ...p,
-        role: rolesMap[p.user_id] || 'user',
-      }));
-
-      setMembers(membersWithRoles);
-    } catch (err) {
+      setMembers(data || []);
+    } catch (err: any) {
       console.error('Error fetching members:', err);
-      setError('Failed to load members');
+      setError(err.message);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const deleteMember = async (userId: string) => {
+  const addMember = async (memberData: {
+    full_name: string;
+    email: string;
+    mobile_number?: string;
+    role?: 'admin' | 'member';
+  }) => {
+    if (!isAdmin) {
+      throw new Error('Only admins can add members');
+    }
+
     try {
-      // Delete from profiles (cascade will handle user_roles)
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('user_id', userId);
+      // Note: This would typically be handled by the Google OAuth flow
+      // For manual member addition, you'd need to invite them via email
+      const { data, error } = await supabase
+        .from('members')
+        .insert([memberData])
+        .select()
+        .single();
 
       if (error) throw error;
-      await fetchMembers();
-    } catch (err) {
+
+      setMembers(prev => [data, ...prev]);
+      return data;
+    } catch (err: any) {
+      console.error('Error adding member:', err);
+      throw err;
+    }
+  };
+
+  const updateMember = async (id: string, updates: Partial<Member>) => {
+    if (!isAdmin) {
+      throw new Error('Only admins can update members');
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('members')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setMembers(prev => prev.map(member => 
+        member.id === id ? data : member
+      ));
+      return data;
+    } catch (err: any) {
+      console.error('Error updating member:', err);
+      throw err;
+    }
+  };
+
+  const deleteMember = async (id: string) => {
+    if (!isAdmin) {
+      throw new Error('Only admins can delete members');
+    }
+
+    try {
+      const { error } = await supabase
+        .from('members')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setMembers(prev => prev.filter(member => member.id !== id));
+    } catch (err: any) {
       console.error('Error deleting member:', err);
       throw err;
     }
   };
 
   useEffect(() => {
-    fetchMembers();
-  }, []);
+    if (user) {
+      fetchMembers();
+    }
+  }, [user]);
 
   return {
     members,
-    isLoading,
+    loading,
     error,
-    refetch: fetchMembers,
+    addMember,
+    updateMember,
     deleteMember,
+    refetch: fetchMembers,
   };
 };

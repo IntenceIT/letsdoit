@@ -6,14 +6,12 @@ import {
   Save, 
   Loader2, 
   Calendar, 
-  Users, 
   Brain,
   RotateCcw
 } from 'lucide-react';
 import { format, addYears } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMembers } from '@/hooks/useMembers';
-import { TaskWithCompletion, addTask, updateTask, resetTaskCompletions } from '@/hooks/useTasks';
+import { useTasks, type TaskWithAssignment } from '@/hooks/useTasks';
 import BottomNav from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,18 +37,18 @@ const AddTask: React.FC = () => {
   const location = useLocation();
   const { toast } = useToast();
   const { user, isAdmin } = useAuth();
-  const { members } = useMembers();
+  const { createTask, updateTask } = useTasks(new Date());
 
   // Get edit task from navigation state
-  const editTask = (location.state as { editTask?: TaskWithCompletion })?.editTask;
+  const editTask = (location.state as { editTask?: TaskWithAssignment })?.editTask;
   const isEditing = !!editTask;
 
   // Form state
   const [taskType, setTaskType] = useState<'permanent' | 'additional'>(
-    editTask?.task_type || 'permanent'
+    (editTask?.task_type as 'permanent' | 'additional') || 'permanent'
   );
-  const [title, setTitle] = useState(editTask?.title || '');
-  const [description, setDescription] = useState(editTask?.description || '');
+  const [title, setTitle] = useState(editTask?.task_title || '');
+  const [description, setDescription] = useState(editTask?.task_description || '');
   const [remarks, setRemarks] = useState(editTask?.remarks || '');
   const [requiresAiCount, setRequiresAiCount] = useState(editTask?.requires_ai_count || false);
   const [selectedWeekdays, setSelectedWeekdays] = useState<string[]>(
@@ -62,14 +60,7 @@ const AddTask: React.FC = () => {
   const [endDate, setEndDate] = useState<Date | undefined>(
     editTask?.end_date ? new Date(editTask.end_date) : undefined
   );
-  const [assignedUsers, setAssignedUsers] = useState<string[]>(
-    editTask?.assigned_users || []
-  );
-  const [assignAll, setAssignAll] = useState(
-    !editTask || editTask.assigned_users.length === 0
-  );
   const [isLoading, setIsLoading] = useState(false);
-  const [hadAiCountEnabled, setHadAiCountEnabled] = useState(editTask?.requires_ai_count || false);
 
   // Redirect non-admins
   useEffect(() => {
@@ -87,12 +78,6 @@ const AddTask: React.FC = () => {
     );
   };
 
-  const handleUserToggle = (userId: string) => {
-    setAssignedUsers((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
-    );
-  };
-
   const validateForm = (): string | null => {
     if (!title.trim()) return 'Task title is required';
     if (title.length > 100) return 'Title must be less than 100 characters';
@@ -102,9 +87,6 @@ const AddTask: React.FC = () => {
     } else {
       if (startDate && endDate && startDate > endDate) {
         return 'End date must be after start date';
-      }
-      if (!assignAll && assignedUsers.length === 0) {
-        return 'Assign at least one user or select "All Team Members"';
       }
     }
     
@@ -126,37 +108,24 @@ const AddTask: React.FC = () => {
 
     try {
       const taskData = {
-        title: title.trim(),
-        description: description.trim() || null,
-        remarks: remarks.trim() || null,
+        task_title: title.trim(),
+        task_description: description.trim() || undefined,
+        remarks: remarks.trim() || undefined,
         task_type: taskType as 'permanent' | 'additional',
         requires_ai_count: requiresAiCount,
-        weekdays: taskType === 'permanent' ? selectedWeekdays : [],
-        start_date: taskType === 'additional' && startDate ? format(startDate, 'yyyy-MM-dd') : null,
-        end_date: taskType === 'additional' && endDate ? format(endDate, 'yyyy-MM-dd') : null,
-        assigned_users: taskType === 'additional' && !assignAll ? assignedUsers : [],
-        created_by: user?.id || null,
+        weekdays: taskType === 'permanent' ? selectedWeekdays : undefined,
+        start_date: taskType === 'additional' && startDate ? format(startDate, 'yyyy-MM-dd') : undefined,
+        end_date: taskType === 'additional' && endDate ? format(endDate, 'yyyy-MM-dd') : undefined,
       };
 
       if (isEditing && editTask) {
-        // Check if AI count was just enabled on a completed task
-        if (requiresAiCount && !hadAiCountEnabled) {
-          resetTaskCompletions(editTask.id);
-          toast({
-            title: 'Task Reset',
-            description: 'AI Count enabled. Task reset to Pending for all users.',
-          });
-        }
-
-        updateTask(editTask.id, taskData);
-
+        await updateTask(editTask.id, taskData);
         toast({
           title: 'Task Updated',
           description: 'Task has been updated successfully',
         });
       } else {
-        addTask(taskData);
-
+        await createTask(taskData);
         toast({
           title: 'Task Created',
           description: 'New task has been created successfully',
@@ -176,9 +145,6 @@ const AddTask: React.FC = () => {
   };
 
   if (!isAdmin) return null;
-
-  // Filter out admin from member list for assignment
-  const assignableMembers = members.filter((m) => m.role !== 'admin');
 
   return (
     <div className="min-h-screen bg-gradient-surface pb-20 safe-area-top">
@@ -369,142 +335,77 @@ const AddTask: React.FC = () => {
           </motion.div>
         )}
 
-        {/* Additional Task - Date Range & Assignment */}
+        {/* Additional Task - Date Range */}
         {taskType === 'additional' && (
-          <>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    Date Range
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Start Date</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !startDate && "text-muted-foreground"
-                            )}
-                          >
-                            {startDate ? format(startDate, 'MMM d, yyyy') : 'Optional'}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <CalendarComponent
-                            mode="single"
-                            selected={startDate}
-                            onSelect={setStartDate}
-                            disabled={(date) => date < today || date > maxDate}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>End Date</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !endDate && "text-muted-foreground"
-                            )}
-                          >
-                            {endDate ? format(endDate, 'MMM d, yyyy') : 'Optional'}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <CalendarComponent
-                            mode="single"
-                            selected={endDate}
-                            onSelect={setEndDate}
-                            disabled={(date) => 
-                              date < (startDate || today) || date > maxDate
-                            }
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Date Range
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !startDate && "text-muted-foreground"
+                          )}
+                        >
+                          {startDate ? format(startDate, 'MMM d, yyyy') : 'Optional'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={startDate}
+                          onSelect={setStartDate}
+                          disabled={(date) => date < today || date > maxDate}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    Assign To
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="assign-all"
-                      checked={assignAll}
-                      onCheckedChange={(checked) => {
-                        setAssignAll(!!checked);
-                        if (checked) setAssignedUsers([]);
-                      }}
-                    />
-                    <Label htmlFor="assign-all" className="cursor-pointer">
-                      All Team Members
-                    </Label>
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !endDate && "text-muted-foreground"
+                          )}
+                        >
+                          {endDate ? format(endDate, 'MMM d, yyyy') : 'Optional'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={endDate}
+                          onSelect={setEndDate}
+                          disabled={(date) => 
+                            date < (startDate || today) || date > maxDate
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
-
-                  {!assignAll && (
-                    <div className="space-y-2 pt-2 border-t border-border">
-                      <p className="text-sm text-muted-foreground">
-                        Select specific members:
-                      </p>
-                      {assignableMembers.length === 0 ? (
-                        <p className="text-sm text-muted-foreground italic">
-                          No team members available
-                        </p>
-                      ) : (
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {assignableMembers.map((member) => (
-                            <div
-                              key={member.user_id}
-                              className="flex items-center space-x-2"
-                            >
-                              <Checkbox
-                                id={member.user_id}
-                                checked={assignedUsers.includes(member.user_id)}
-                                onCheckedChange={() => handleUserToggle(member.user_id)}
-                              />
-                              <Label
-                                htmlFor={member.user_id}
-                                className="cursor-pointer text-sm"
-                              >
-                                {member.full_name}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          </>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         )}
 
         {/* Submit Button */}

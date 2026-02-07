@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Filter, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTasks, TaskWithCompletion, deleteTask } from '@/hooks/useTasks';
+import { useTasks, type TaskWithAssignment } from '@/hooks/useTasks';
 import BottomNav from '@/components/BottomNav';
 import TaskCard from '@/components/TaskCard';
 import DateSelector from '@/components/DateSelector';
@@ -31,19 +31,19 @@ const Tasks: React.FC = () => {
   const [filter, setFilter] = useState<string>('all');
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
 
-  const { tasks, isLoading, error, refetch, updateTaskCompletion } = useTasks(selectedDate);
+  const { tasks, isLoading, error, refetch, updateTaskCompletion, deleteTask } = useTasks(selectedDate);
 
   // Filter tasks based on search and status filter
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch =
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      task.task_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      task.task_description?.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (filter === 'done') {
-      return matchesSearch && task.completion?.is_completed;
+      return matchesSearch && task.assignment?.completion_status === 'completed';
     }
     if (filter === 'pending') {
-      return matchesSearch && !task.completion?.is_completed;
+      return matchesSearch && task.assignment?.completion_status !== 'completed';
     }
     return matchesSearch;
   });
@@ -64,7 +64,7 @@ const Tasks: React.FC = () => {
     }
   };
 
-  const handleEdit = (task: TaskWithCompletion) => {
+  const handleEdit = (task: TaskWithAssignment) => {
     navigate('/add-task', { state: { editTask: task } });
   };
 
@@ -72,12 +72,11 @@ const Tasks: React.FC = () => {
     if (!taskToDelete) return;
 
     try {
-      deleteTask(taskToDelete);
+      await deleteTask(taskToDelete);
       toast({
         title: 'Task Deleted',
         description: 'The task has been deleted successfully',
       });
-      refetch();
     } catch (error) {
       toast({
         title: 'Error',
