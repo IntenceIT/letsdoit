@@ -17,7 +17,9 @@ export interface Member {
   full_name: string;
   email: string;
   role: string;
+  status: 'pending' | 'approved' | 'rejected'; // User approval status
   mobile_number: string | null;
+  fcm_token: string | null; // For push notifications
   last_login_at: Timestamp | null;
   created_at: Timestamp;
   updated_at: Timestamp;

@@ -10,7 +10,6 @@ import {
   where,
   orderBy,
   Timestamp,
-  QueryConstraint,
   setDoc,
 } from 'firebase/firestore';
 import { db } from './config';
@@ -31,17 +30,6 @@ const COLLECTIONS = {
   MEMBERS: 'members',
   TASKS: 'tasks',
   TASK_ASSIGNMENTS: 'task_assignments',
-};
-
-// Helper function to convert Firestore data
-const convertTimestamp = (data: any) => {
-  const converted = { ...data };
-  Object.keys(converted).forEach(key => {
-    if (converted[key] instanceof Timestamp) {
-      converted[key] = converted[key].toDate().toISOString();
-    }
-  });
-  return converted;
 };
 
 // Organizations
@@ -71,7 +59,9 @@ export const organizationsService = {
 // Members
 export const membersService = {
   async create(data: MemberInsert): Promise<Member> {
-    const docRef = await addDoc(collection(db, COLLECTIONS.MEMBERS), {
+    // Use auth_user_id as document ID for better security rules
+    const docRef = doc(db, COLLECTIONS.MEMBERS, data.auth_user_id);
+    await setDoc(docRef, {
       ...data,
       created_at: Timestamp.now(),
       updated_at: Timestamp.now(),
@@ -87,14 +77,10 @@ export const membersService = {
   },
 
   async getByAuthUserId(authUserId: string): Promise<Member | null> {
-    const q = query(
-      collection(db, COLLECTIONS.MEMBERS),
-      where('auth_user_id', '==', authUserId)
-    );
-    const querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) return null;
-    const doc = querySnapshot.docs[0];
-    return { id: doc.id, ...doc.data() } as Member;
+    // Now we can directly get by document ID since we use auth_user_id as ID
+    const docRef = doc(db, COLLECTIONS.MEMBERS, authUserId);
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as Member : null;
   },
 
   async getByEmail(email: string): Promise<Member | null> {

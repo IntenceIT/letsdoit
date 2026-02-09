@@ -3,6 +3,8 @@ import { membersService } from '@/integrations/firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Member } from '@/integrations/firebase/types';
 
+export type { Member };
+
 export const useMembers = () => {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);

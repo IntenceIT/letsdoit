@@ -22,13 +22,17 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Start scheduler
-scheduler.start();
+// Start scheduler only in non-serverless environment
+if (process.env.NODE_ENV !== 'production') {
+  scheduler.start();
+}
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Task Management Backend running on port ${PORT}`);
-  console.log(`📅 Daily task scheduler is active`);
-});
+// Start server only if not in serverless environment
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Task Management Backend running on port ${PORT}`);
+    console.log(`📅 Daily task scheduler is active`);
+  });
+}
 
 module.exports = app;

@@ -62,6 +62,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (memberData) {
         setMember(memberData);
         setIsAdmin(memberData.role === 'admin');
+        setUser({
+          id: authUser.uid,
+          email: authUser.email || '',
+          full_name: memberData.full_name,
+        });
       }
     }
   };
@@ -217,6 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: userName.trim(),
           email: email,
           role: isAdminUser ? 'admin' : 'member',
+          status: isAdminUser ? 'approved' : 'pending', // Admin auto-approved, others pending
           mobile_number: firebaseUser.phoneNumber || null,
           last_login_at: null,
         });
@@ -224,10 +230,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('New member created:', memberData);
       }
 
-      // Update last login
-      await membersService.update(memberData.id, {
-        last_login_at: new Date() as any,
-      });
+      // Skip last login update for now (not critical)
+      // Will be updated when admin approves
 
       setUser({
         id: firebaseUser.uid,

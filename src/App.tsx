@@ -11,13 +11,14 @@ import AddTask from "./pages/AddTask";
 import Profile from "./pages/Profile";
 import Members from "./pages/Members";
 import AddMember from "./pages/AddMember";
+import PendingApproval from "./pages/PendingApproval";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 // Protected Route wrapper
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isLoading } = useAuth();
+  const { user, member, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -34,12 +35,34 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/" replace />;
   }
 
+  // Wait for member data to load
+  if (!member) {
+    return (
+      <div className="min-h-screen bg-gradient-surface flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground text-sm">Loading member data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if member is pending approval
+  if (member.status === 'pending') {
+    return <Navigate to="/pending-approval" replace />;
+  }
+
+  // Check if member is rejected
+  if (member.status === 'rejected') {
+    return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 };
 
 // Public Route wrapper (redirects authenticated users)
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isLoading } = useAuth();
+  const { user, member, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -52,8 +75,15 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     );
   }
 
-  if (user) {
-    return <Navigate to="/dashboard" replace />;
+  if (user && member) {
+    // If user is approved, go to dashboard
+    if (member.status === 'approved') {
+      return <Navigate to="/dashboard" replace />;
+    }
+    // If user is pending, go to pending page
+    if (member.status === 'pending') {
+      return <Navigate to="/pending-approval" replace />;
+    }
   }
 
   return <>{children}</>;
@@ -71,6 +101,9 @@ const AppRoutes = () => {
           </PublicRoute>
         }
       />
+
+      {/* Pending Approval Route (special case - authenticated but not approved) */}
+      <Route path="/pending-approval" element={<PendingApproval />} />
 
       {/* Protected Routes */}
       <Route

@@ -1,0 +1,54 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user's member document exists and is approved
+    function isApprovedMember() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/members/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/members/$(request.auth.uid)).data.status == 'approved';
+    }
+    
+    // Check if user is admin (must be approved first)
+    function isAdmin() {
+      return isApprovedMember() &&
+             get(/databases/$(database)/documents/members/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Organizations - allow creation during signup, read for approved members
+    match /organizations/{orgId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated(); // Allow creation during signup
+      allow update, delete: if isAdmin();
+    }
+
+    // Members - special rules for approval flow
+    match /members/{memberId} {
+      // Anyone authenticated can read their own pending status
+      allow read: if isAuthenticated();
+      // Anyone authenticated can create their own member doc (for signup)
+      allow create: if isAuthenticated() && request.auth.uid == memberId;
+      // Only admin can update/delete
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Tasks - only approved members can read, only admin can write
+    match /tasks/{taskId} {
+      allow read: if isApprovedMember();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Task assignments - only approved members
+    match /task_assignments/{assignmentId} {
+      allow read: if isApprovedMember();
+      allow create, update: if isApprovedMember();
+      allow delete: if isAdmin();
+    }
+  }
+}

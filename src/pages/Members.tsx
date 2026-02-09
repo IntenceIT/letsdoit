@@ -11,7 +11,10 @@ import {
   Loader2,
   AlertCircle,
   CheckSquare,
-  Square
+  Square,
+  UserCheck,
+  UserX,
+  Clock
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMembers, Member } from '@/hooks/useMembers';
@@ -37,13 +40,18 @@ const Members: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isAdmin, user } = useAuth();
-  const { members, isLoading, error, refetch, deleteMember } = useMembers();
+  const { members, isLoading, error, refetch, deleteMember, updateMember } = useMembers();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showPendingOnly, setShowPendingOnly] = useState(false);
+
+  // Separate pending and approved members
+  const pendingMembers = members.filter(m => m.status === 'pending');
+  const approvedMembers = members.filter(m => m.status === 'approved');
 
   // Redirect non-admins
   React.useEffect(() => {
@@ -52,7 +60,9 @@ const Members: React.FC = () => {
     }
   }, [isAdmin, navigate]);
 
-  const filteredMembers = members.filter((member) =>
+  const displayMembers = showPendingOnly ? pendingMembers : approvedMembers;
+
+  const filteredMembers = displayMembers.filter((member) =>
     member.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     member.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -70,6 +80,38 @@ const Members: React.FC = () => {
     const message = `Your login credentials for TaskFlow:\nEmail: ${member.email}\nPlease contact admin for password.`;
     const smsUrl = `sms:${member.mobile_number || ''}?body=${encodeURIComponent(message)}`;
     window.open(smsUrl);
+  };
+
+  const handleApproveMember = async (member: Member) => {
+    try {
+      await updateMember(member.id, { status: 'approved' });
+      toast({
+        title: 'Member Approved',
+        description: `${member.full_name} can now access the app`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to approve member',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRejectMember = async (member: Member) => {
+    try {
+      await updateMember(member.id, { status: 'rejected' });
+      toast({
+        title: 'Member Rejected',
+        description: `${member.full_name} has been rejected`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to reject member',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleDelete = async () => {
@@ -173,16 +215,27 @@ const Members: React.FC = () => {
 
           {/* Bulk Actions */}
           <div className="flex items-center justify-between mt-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setBulkDeleteMode(!bulkDeleteMode);
-                setSelectedMembers([]);
-              }}
-            >
-              {bulkDeleteMode ? 'Cancel' : 'Bulk Delete'}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant={showPendingOnly ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setShowPendingOnly(!showPendingOnly)}
+                className="gap-1"
+              >
+                <Clock className="w-4 h-4" />
+                Pending {pendingMembers.length > 0 && `(${pendingMembers.length})`}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setBulkDeleteMode(!bulkDeleteMode);
+                  setSelectedMembers([]);
+                }}
+              >
+                {bulkDeleteMode ? 'Cancel' : 'Bulk Delete'}
+              </Button>
+            </div>
             {bulkDeleteMode && selectedMembers.length > 0 && (
               <Button
                 variant="destructive"
@@ -269,6 +322,12 @@ const Members: React.FC = () => {
                                   Admin
                                 </Badge>
                               )}
+                              {member.status === 'pending' && (
+                                <Badge variant="outline" className="text-2xs shrink-0 border-yellow-500 text-yellow-600">
+                                  <Clock className="w-3 h-3 mr-1" />
+                                  Pending
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-sm text-muted-foreground truncate">
                               {member.email}
@@ -282,33 +341,58 @@ const Members: React.FC = () => {
 
                           {!bulkDeleteMode && (
                             <div className="flex items-center gap-1">
-                              {member.mobile_number && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleSendSMS(member)}
-                                >
-                                  <MessageSquare className="w-4 h-4" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => navigate('/members/add', { state: { editMember: member } })}
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </Button>
-                              {canDelete && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive"
-                                  onClick={() => setMemberToDelete(member)}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                              {member.status === 'pending' ? (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    onClick={() => handleApproveMember(member)}
+                                    title="Approve"
+                                  >
+                                    <UserCheck className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => handleRejectMember(member)}
+                                    title="Reject"
+                                  >
+                                    <UserX className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  {member.mobile_number && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => handleSendSMS(member)}
+                                    >
+                                      <MessageSquare className="w-4 h-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => navigate('/members/add', { state: { editMember: member } })}
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </Button>
+                                  {canDelete && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-destructive"
+                                      onClick={() => setMemberToDelete(member)}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}
