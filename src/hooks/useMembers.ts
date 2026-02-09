@@ -1,30 +1,22 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { membersService } from '@/integrations/firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Member } from '@/integrations/supabase/types';
+import type { Member } from '@/integrations/firebase/types';
 
 export const useMembers = () => {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isAdmin } = useAuth();
+  const { user, member, isAdmin } = useAuth();
 
   const fetchMembers = async () => {
-    if (!user) return;
+    if (!member?.organization_id) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('members')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
+      const data = await membersService.getByOrganization(member.organization_id);
       setMembers(data || []);
     } catch (err: any) {
       console.error('Error fetching members:', err);
@@ -35,6 +27,8 @@ export const useMembers = () => {
   };
 
   const addMember = async (memberData: {
+    auth_user_id: string;
+    organization_id: string;
     full_name: string;
     email: string;
     mobile_number?: string;
@@ -45,15 +39,11 @@ export const useMembers = () => {
     }
 
     try {
-      // Note: This would typically be handled by the Google OAuth flow
-      // For manual member addition, you'd need to invite them via email
-      const { data, error } = await supabase
-        .from('members')
-        .insert([memberData])
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await membersService.create({
+        ...memberData,
+        role: memberData.role || 'member',
+        last_login_at: null,
+      });
 
       setMembers(prev => [data, ...prev]);
       return data;
@@ -69,19 +59,16 @@ export const useMembers = () => {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('members')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setMembers(prev => prev.map(member => 
-        member.id === id ? data : member
-      ));
-      return data;
+      await membersService.update(id, updates);
+      const updatedMember = await membersService.getById(id);
+      
+      if (updatedMember) {
+        setMembers(prev => prev.map(member => 
+          member.id === id ? updatedMember : member
+        ));
+      }
+      
+      return updatedMember;
     } catch (err: any) {
       console.error('Error updating member:', err);
       throw err;
@@ -94,13 +81,7 @@ export const useMembers = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('members')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
+      await membersService.delete(id);
       setMembers(prev => prev.filter(member => member.id !== id));
     } catch (err: any) {
       console.error('Error deleting member:', err);
@@ -109,10 +90,10 @@ export const useMembers = () => {
   };
 
   useEffect(() => {
-    if (user) {
+    if (member?.organization_id) {
       fetchMembers();
     }
-  }, [user]);
+  }, [member?.organization_id]);
 
   return {
     members,

@@ -1,23 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Save, Loader2, User, Mail, Phone, Lock, Eye, EyeOff, MessageSquare, Send } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, User, Mail, Phone, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/integrations/firebase/config';
+import { membersService } from '@/integrations/firebase/firestore';
 import BottomNav from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  generateWhatsAppMessage, 
-  openWhatsAppWithMessage, 
-  generateMemberCredentials,
-  validatePhoneNumber,
-  type WhatsAppMessageData 
-} from '@/lib/whatsapp';
-import type { Member } from '@/integrations/supabase/types';
+import type { Member } from '@/integrations/firebase/types';
 
 const AddMember: React.FC = () => {
   const navigate = useNavigate();
@@ -39,7 +34,7 @@ const AddMember: React.FC = () => {
   // Auto-generate password for new members
   useEffect(() => {
     if (!isEditing && !password) {
-      setPassword(generateMemberCredentials());
+      setPassword(generatePassword());
     }
   }, [isEditing, password]);
 
@@ -50,15 +45,20 @@ const AddMember: React.FC = () => {
     }
   }, [isAdmin, navigate]);
 
+  const generatePassword = (): string => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
   const formatPhoneNumber = (value: string) => {
-    // Remove all non-digits
     let cleaned = value.replace(/\D/g, '');
-    
-    // Limit to 10 digits for Indian numbers
     if (cleaned.length > 10) {
       cleaned = cleaned.slice(-10);
     }
-    
     return cleaned;
   };
 
@@ -73,38 +73,10 @@ const AddMember: React.FC = () => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Invalid email format';
     if (!isEditing && !password) return 'Password is required';
     if (!isEditing && password.length < 6) return 'Password must be at least 6 characters';
-    if (mobileNumber && !validatePhoneNumber(mobileNumber)) {
+    if (mobileNumber && (mobileNumber.length !== 10 || !/^\d{10}$/.test(mobileNumber))) {
       return 'Please enter a valid 10-digit mobile number';
     }
     return null;
-  };
-
-  const sendWhatsAppInvitation = (memberEmail: string, memberPassword: string, memberName: string) => {
-    if (!mobileNumber || !validatePhoneNumber(mobileNumber)) {
-      toast({
-        title: 'Invalid Phone Number',
-        description: 'Please enter a valid mobile number to send WhatsApp message',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const messageData: WhatsAppMessageData = {
-      memberName: memberName,
-      memberEmail: memberEmail,
-      memberPassword: memberPassword,
-      memberPhone: mobileNumber,
-      adminName: currentMember?.full_name || 'Admin',
-      appUrl: window.location.origin,
-    };
-
-    const message = generateWhatsAppMessage(messageData);
-    openWhatsAppWithMessage(mobileNumber, message);
-
-    toast({
-      title: 'WhatsApp Opened',
-      description: 'WhatsApp opened with credentials. Please click Send!',
-    });
   };
 
   const handleSubmit = async () => {
@@ -118,77 +90,78 @@ const AddMember: React.FC = () => {
       return;
     }
 
+    if (!currentMember?.organization_id) {
+      toast({
+        title: 'Error',
+        description: 'Organization not found',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       if (isEditing && editMember) {
         // Update existing member
-        const { error } = await supabase
-          .from('members')
-          .update({
-            full_name: fullName.trim(),
-            mobile_number: mobileNumber || null,
-          })
-          .eq('id', editMember.id);
-
-        if (error) throw error;
+        await membersService.update(editMember.id, {
+          full_name: fullName.trim(),
+          mobile_number: mobileNumber || null,
+        });
 
         toast({
           title: 'Member Updated',
           description: 'Member information has been updated successfully',
         });
       } else {
-        // Step 1: Create auth user with Supabase Auth
-        const { data: authData, error: signUpError } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            data: {
-              full_name: fullName.trim(),
-            },
-            emailRedirectTo: `${window.location.origin}/login`,
-          },
-        });
+        // Step 1: Create user in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email.trim(),
+          password
+        );
 
-        if (signUpError) throw signUpError;
-
-        if (!authData.user) {
+        if (!userCredential.user) {
           throw new Error('Failed to create user account');
         }
 
-        // Step 2: Update member record with mobile number and ensure organization
-        const { error: updateError } = await supabase
-          .from('members')
-          .update({
-            mobile_number: mobileNumber || null,
-            organization_id: currentMember?.organization_id,
-          })
-          .eq('auth_user_id', authData.user.id);
-
-        if (updateError) {
-          console.error('Error updating member:', updateError);
-          // Don't throw - member was created by trigger
-        }
+        // Step 2: Create member document in Firestore
+        await membersService.create({
+          auth_user_id: userCredential.user.uid,
+          organization_id: currentMember.organization_id,
+          full_name: fullName.trim(),
+          email: email.trim(),
+          role: 'member',
+          mobile_number: mobileNumber || null,
+          last_login_at: null,
+        });
 
         toast({
           title: 'Member Created',
-          description: 'New member account has been created successfully',
+          description: `New member has been added successfully. Email: ${email}, Password: ${password}`,
+          duration: 10000,
         });
 
-        // Step 3: Send WhatsApp invitation with credentials
-        if (mobileNumber && validatePhoneNumber(mobileNumber)) {
-          setTimeout(() => {
-            sendWhatsAppInvitation(email.trim(), password, fullName.trim());
-          }, 1000);
-        }
+        // Show credentials one more time
+        alert(`Member Created Successfully!\n\nEmail: ${email}\nPassword: ${password}\n\nPlease save these credentials and share with the member.`);
       }
 
       navigate('/members');
     } catch (error: any) {
       console.error('Error saving member:', error);
+      let errorMessage = 'Failed to save member';
+      
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'This email is already registered';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak';
+      }
+      
       toast({
         title: 'Error',
-        description: error.message || 'Failed to save member',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -197,7 +170,7 @@ const AddMember: React.FC = () => {
   };
 
   const regeneratePassword = () => {
-    setPassword(generateMemberCredentials());
+    setPassword(generatePassword());
     toast({
       title: 'Password Generated',
       description: 'New password has been generated',
@@ -279,7 +252,7 @@ const AddMember: React.FC = () => {
 
               {/* Mobile Number */}
               <div className="space-y-2">
-                <Label htmlFor="mobile">Mobile Number *</Label>
+                <Label htmlFor="mobile">Mobile Number (Optional)</Label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
@@ -292,9 +265,6 @@ const AddMember: React.FC = () => {
                     maxLength={10}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Required for WhatsApp invitation with credentials
-                </p>
               </div>
 
               {/* Password (only for new members) */}
@@ -335,71 +305,10 @@ const AddMember: React.FC = () => {
                     </button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    This password will be sent via WhatsApp
+                    Save this password to share with the member
                   </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* WhatsApp Preview Card */}
-        {!isEditing && mobileNumber && validatePhoneNumber(mobileNumber) && fullName && email && password && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Card className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-green-600" />
-                  WhatsApp Message Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border text-sm">
-                  <div className="font-medium text-green-600 mb-1">To: +91{mobileNumber}</div>
-                  <div className="whitespace-pre-line text-gray-700 dark:text-gray-300">
-                    {generateWhatsAppMessage({
-                      memberName: fullName,
-                      memberEmail: email,
-                      memberPassword: password,
-                      memberPhone: mobileNumber,
-                      adminName: currentMember?.full_name || 'Admin',
-                      appUrl: window.location.origin,
-                    })}
-                  </div>
-                </div>
-                <p className="text-xs text-green-700 dark:text-green-300">
-                  ✓ Credentials will be sent automatically after member creation
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* Info Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <MessageSquare className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    Automatic WhatsApp Integration
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {isEditing
-                      ? "Update member details. Password cannot be changed after creation."
-                      : "After creating the member, their login credentials (email & password) will be automatically sent to their WhatsApp. They can use these credentials to login immediately!"}
-                  </p>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -408,7 +317,7 @@ const AddMember: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.1 }}
         >
           <Button
             onClick={handleSubmit}
@@ -418,12 +327,12 @@ const AddMember: React.FC = () => {
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {isEditing ? 'Updating...' : 'Creating & Sending...'}
+                {isEditing ? 'Updating...' : 'Creating...'}
               </>
             ) : (
               <>
                 <Save className="w-4 h-4 mr-2" />
-                {isEditing ? 'Update Member' : 'Create & Send Credentials'}
+                {isEditing ? 'Update Member' : 'Create Member'}
               </>
             )}
           </Button>

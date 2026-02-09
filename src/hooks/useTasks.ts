@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { tasksService, taskAssignmentsService } from '@/integrations/firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
-import type { Task, TaskAssignment, Member } from '@/integrations/supabase/types';
+import { Timestamp } from 'firebase/firestore';
+import type { Task, TaskAssignment } from '@/integrations/firebase/types';
 
 export interface TaskWithAssignment extends Task {
   assignment?: TaskAssignment;
@@ -41,12 +42,7 @@ export const useTasks = (selectedDate: Date) => {
       const dayName = Object.keys(WEEKDAY_MAP).find(key => WEEKDAY_MAP[key] === dayOfWeek) || '';
 
       // Fetch all tasks for the organization
-      const { data: allTasks, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('organization_id', member.organization_id);
-
-      if (tasksError) throw tasksError;
+      const allTasks = await tasksService.getByOrganization(member.organization_id);
 
       // Filter tasks based on type and date
       const filteredTasks = (allTasks || []).filter((task: Task) => {
@@ -65,33 +61,7 @@ export const useTasks = (selectedDate: Date) => {
       });
 
       // Fetch task assignments for the current user and date
-      const { data: assignments, error: assignmentsError } = await supabase
-        .from('task_assignments')
-        .select('*')
-        .eq('member_id', member.id)
-        .eq('assigned_date', dateStr)
-        .in('task_id', filteredTasks.map(t => t.id));
-
-      if (assignmentsError) throw assignmentsError;
-
-      // Fetch all assignments for the date to see who completed tasks
-      const { data: allAssignments, error: allAssignmentsError } = await supabase
-        .from('task_assignments')
-        .select(`
-          *,
-          members!inner(full_name)
-        `)
-        .eq('assigned_date', dateStr)
-        .eq('completion_status', 'completed')
-        .in('task_id', filteredTasks.map(t => t.id));
-
-      if (allAssignmentsError) throw allAssignmentsError;
-
-      // Create a map of completed tasks to user names
-      const completedByMap: Record<string, string> = {};
-      (allAssignments || []).forEach((assignment: any) => {
-        completedByMap[assignment.task_id] = assignment.members.full_name;
-      });
+      const assignments = await taskAssignmentsService.getByMemberAndDate(member.id, dateStr);
 
       // Combine tasks with assignments
       const tasksWithAssignments: TaskWithAssignment[] = filteredTasks.map((task: Task) => {
@@ -102,7 +72,6 @@ export const useTasks = (selectedDate: Date) => {
         return {
           ...task,
           assignment,
-          completedByUser: completedByMap[task.id],
         };
       });
 
@@ -128,29 +97,32 @@ export const useTasks = (selectedDate: Date) => {
 
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const now = new Date().toISOString();
 
-      const { data, error } = await supabase
-        .from('task_assignments')
-        .upsert({
+      // Check if assignment exists
+      const existingAssignments = await taskAssignmentsService.getByMemberAndDate(member.id, dateStr);
+      const existingAssignment = existingAssignments.find(a => a.task_id === taskId);
+
+      if (existingAssignment) {
+        // Update existing assignment
+        await taskAssignmentsService.update(existingAssignment.id, {
+          completion_status: isCompleted ? 'completed' : 'pending',
+          ai_count_value: aiCountValue || null,
+          completed_at: isCompleted ? Timestamp.now() : null,
+        });
+      } else {
+        // Create new assignment
+        await taskAssignmentsService.create({
           task_id: taskId,
           member_id: member.id,
           assigned_date: dateStr,
           completion_status: isCompleted ? 'completed' : 'pending',
           ai_count_value: aiCountValue || null,
-          completed_at: isCompleted ? now : null,
-        })
-        .select()
-        .single();
+          completed_at: isCompleted ? Timestamp.now() : null,
+        });
+      }
 
-      if (error) throw error;
-
-      // Update local state
-      setTasks(prev => prev.map(task => 
-        task.id === taskId 
-          ? { ...task, assignment: data }
-          : task
-      ));
+      // Refresh tasks
+      await fetchTasks();
     } catch (err: any) {
       console.error('Error updating task completion:', err);
       throw err;
@@ -172,17 +144,17 @@ export const useTasks = (selectedDate: Date) => {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .insert([{
-          ...taskData,
-          organization_id: member.organization_id,
-          assigned_by_admin: user?.id,
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await tasksService.create({
+        ...taskData,
+        organization_id: member.organization_id,
+        assigned_by_admin: user?.id || null,
+        requires_ai_count: taskData.requires_ai_count || false,
+        task_description: taskData.task_description || null,
+        remarks: taskData.remarks || null,
+        weekdays: taskData.weekdays || null,
+        start_date: taskData.start_date || null,
+        end_date: taskData.end_date || null,
+      });
 
       await fetchTasks();
       return data;
@@ -198,17 +170,8 @@ export const useTasks = (selectedDate: Date) => {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .update(updates)
-        .eq('id', taskId)
-        .select()
-        .single();
-
-      if (error) throw error;
-
+      await tasksService.update(taskId, updates);
       await fetchTasks();
-      return data;
     } catch (err: any) {
       console.error('Error updating task:', err);
       throw err;
@@ -221,13 +184,7 @@ export const useTasks = (selectedDate: Date) => {
     }
 
     try {
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', taskId);
-
-      if (error) throw error;
-
+      await tasksService.delete(taskId);
       await fetchTasks();
     } catch (err: any) {
       console.error('Error deleting task:', err);
