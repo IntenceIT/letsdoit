@@ -81,9 +81,6 @@ export const useTasks = (selectedDate: Date) => {
         }
       });
 
-      // Fetch task assignments for the current date (check ANY member's completion)
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      
       // For each task, check if ANY assignment exists for this date
       const tasksWithSharedStatus: TaskWithAssignment[] = await Promise.all(
         filteredTasks
