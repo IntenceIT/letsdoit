@@ -85,16 +85,29 @@ export const useTasks = (selectedDate: Date) => {
       const assignments = await taskAssignmentsService.getByMemberAndDate(member.id, dateStr);
 
       // Combine tasks with assignments
-      const tasksWithAssignments: TaskWithAssignment[] = filteredTasks.map((task: Task) => {
-        const assignment = (assignments || []).find(
-          (a: TaskAssignment) => a.task_id === task.id
-        );
+      const tasksWithAssignments: TaskWithAssignment[] = filteredTasks
+        .filter((task: Task) => {
+          // If assigned_members is null, show to all members
+          if (!task.assigned_members || task.assigned_members.length === 0) {
+            return true;
+          }
+          // If user is admin, show all tasks
+          if (isAdmin) {
+            return true;
+          }
+          // Otherwise, only show if member is in assigned_members
+          return task.assigned_members.includes(member.id);
+        })
+        .map((task: Task) => {
+          const assignment = (assignments || []).find(
+            (a: TaskAssignment) => a.task_id === task.id
+          );
 
-        return {
-          ...task,
-          assignment,
-        };
-      });
+          return {
+            ...task,
+            assignment,
+          };
+        });
 
       setTasks(tasksWithAssignments);
     } catch (err: any) {

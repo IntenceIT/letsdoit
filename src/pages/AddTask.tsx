@@ -7,11 +7,13 @@ import {
   Loader2, 
   Calendar, 
   Brain,
-  RotateCcw
+  RotateCcw,
+  Users
 } from 'lucide-react';
 import { format, addYears } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTasks, type TaskWithAssignment } from '@/hooks/useTasks';
+import { useMembers } from '@/hooks/useMembers';
 import BottomNav from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,12 +38,16 @@ const AddTask: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, member } = useAuth();
   const { createTask, updateTask } = useTasks(new Date());
+  const { members, loading: membersLoading } = useMembers();
 
   // Get edit task from navigation state
   const editTask = (location.state as { editTask?: TaskWithAssignment })?.editTask;
   const isEditing = !!editTask;
+
+  // Get approved members only
+  const approvedMembers = members.filter(m => m.status === 'approved');
 
   // Form state
   const [taskType, setTaskType] = useState<'permanent' | 'additional'>(
@@ -55,10 +61,16 @@ const AddTask: React.FC = () => {
     editTask?.weekdays || []
   );
   const [startDate, setStartDate] = useState<Date | undefined>(
-    editTask?.start_date ? new Date(editTask.start_date) : undefined
+    editTask?.start_date ? new Date(editTask.start_date) : new Date()
   );
   const [endDate, setEndDate] = useState<Date | undefined>(
     editTask?.end_date ? new Date(editTask.end_date) : undefined
+  );
+  const [assignToAll, setAssignToAll] = useState(
+    !editTask?.assigned_members || editTask.assigned_members.length === 0
+  );
+  const [selectedMembers, setSelectedMembers] = useState<string[]>(
+    editTask?.assigned_members || []
   );
   const [isLoading, setIsLoading] = useState(false);
 
@@ -78,13 +90,33 @@ const AddTask: React.FC = () => {
     );
   };
 
+  const handleMemberToggle = (memberId: string) => {
+    setSelectedMembers((prev) =>
+      prev.includes(memberId) 
+        ? prev.filter((id) => id !== memberId) 
+        : [...prev, memberId]
+    );
+  };
+
+  const handleAssignToAllToggle = (checked: boolean) => {
+    setAssignToAll(checked);
+    if (checked) {
+      setSelectedMembers([]);
+    }
+  };
+
   const validateForm = (): string | null => {
     if (!title.trim()) return 'Task title is required';
     if (title.length > 100) return 'Title must be less than 100 characters';
     
+    if (!assignToAll && selectedMembers.length === 0) {
+      return 'Select at least one member or assign to all';
+    }
+    
     if (taskType === 'permanent') {
       if (selectedWeekdays.length === 0) return 'Select at least one weekday';
     } else {
+      if (!startDate) return 'Start date is required for additional tasks';
       if (startDate && endDate && startDate > endDate) {
         return 'End date must be after start date';
       }
@@ -109,13 +141,14 @@ const AddTask: React.FC = () => {
     try {
       const taskData = {
         task_title: title.trim(),
-        task_description: description.trim() || undefined,
-        remarks: remarks.trim() || undefined,
+        task_description: description.trim() || null,
+        remarks: remarks.trim() || null,
         task_type: taskType as 'permanent' | 'additional',
         requires_ai_count: requiresAiCount,
-        weekdays: taskType === 'permanent' ? selectedWeekdays : undefined,
-        start_date: taskType === 'additional' && startDate ? format(startDate, 'yyyy-MM-dd') : undefined,
-        end_date: taskType === 'additional' && endDate ? format(endDate, 'yyyy-MM-dd') : undefined,
+        weekdays: taskType === 'permanent' ? selectedWeekdays : null,
+        start_date: taskType === 'additional' && startDate ? format(startDate, 'yyyy-MM-dd') : null,
+        end_date: taskType === 'additional' && endDate ? format(endDate, 'yyyy-MM-dd') : null,
+        assigned_members: assignToAll ? null : selectedMembers,
       };
 
       if (isEditing && editTask) {
@@ -302,6 +335,75 @@ const AddTask: React.FC = () => {
           </Card>
         </motion.div>
 
+        {/* Member Assignment */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Assign To
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Assign to All Toggle */}
+              <div className="flex items-center justify-between py-2 border-b">
+                <div>
+                  <Label htmlFor="assign-all" className="cursor-pointer font-medium">
+                    Assign to All Members
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Task will be visible to everyone
+                  </p>
+                </div>
+                <Switch
+                  id="assign-all"
+                  checked={assignToAll}
+                  onCheckedChange={handleAssignToAllToggle}
+                />
+              </div>
+
+              {/* Individual Member Selection */}
+              {!assignToAll && (
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">
+                    Select specific members ({selectedMembers.length} selected)
+                  </Label>
+                  {membersLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading members...</p>
+                  ) : approvedMembers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No members available</p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {approvedMembers.map((m) => (
+                        <div key={m.id} className="flex items-center space-x-2 py-1">
+                          <Checkbox
+                            id={`member-${m.id}`}
+                            checked={selectedMembers.includes(m.id)}
+                            onCheckedChange={() => handleMemberToggle(m.id)}
+                          />
+                          <Label 
+                            htmlFor={`member-${m.id}`} 
+                            className="text-sm cursor-pointer flex-1"
+                          >
+                            {m.full_name}
+                            {m.role === 'admin' && (
+                              <span className="ml-2 text-xs text-primary">(Admin)</span>
+                            )}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
         {/* Permanent Task - Weekday Selection */}
         {taskType === 'permanent' && (
           <motion.div
@@ -351,7 +453,7 @@ const AddTask: React.FC = () => {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Start Date</Label>
+                    <Label>Start Date *</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -361,7 +463,7 @@ const AddTask: React.FC = () => {
                             !startDate && "text-muted-foreground"
                           )}
                         >
-                          {startDate ? format(startDate, 'MMM d, yyyy') : 'Optional'}
+                          {startDate ? format(startDate, 'MMM d, yyyy') : 'Select date'}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">

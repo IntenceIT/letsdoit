@@ -38,6 +38,7 @@ export interface Task {
   start_date: string | null;
   end_date: string | null;
   assigned_by_admin: string | null;
+  assigned_members: string[] | null; // Array of member IDs, null means all members
   created_at: Timestamp;
   updated_at: Timestamp;
 }
