@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { tasksService, taskAssignmentsService } from '@/integrations/firebase/firestore';
+import { tasksService, taskAssignmentsService, membersService } from '@/integrations/firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
@@ -81,35 +81,46 @@ export const useTasks = (selectedDate: Date) => {
         }
       });
 
-      // Fetch task assignments for the current user and date
-      const assignments = await taskAssignmentsService.getByMemberAndDate(member.id, dateStr);
+      // Fetch task assignments for the current date (check ANY member's completion)
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      
+      // For each task, check if ANY assignment exists for this date
+      const tasksWithSharedStatus: TaskWithAssignment[] = await Promise.all(
+        filteredTasks
+          .filter((task: Task) => {
+            // If assigned_members is null, show to all members
+            if (!task.assigned_members || task.assigned_members.length === 0) {
+              return true;
+            }
+            // If user is admin, show all tasks
+            if (isAdmin) {
+              return true;
+            }
+            // Otherwise, only show if member is in assigned_members
+            return task.assigned_members.includes(member.id);
+          })
+          .map(async (task: Task) => {
+            // Get ALL assignments for this task and date (from any member)
+            const allAssignments = await taskAssignmentsService.getByTaskAndDate(task.id, dateStr);
+            
+            // Find if ANY member has completed this task
+            const completedAssignment = allAssignments.find(
+              (a: TaskAssignment) => a.completion_status === 'completed'
+            );
 
-      // Combine tasks with assignments
-      const tasksWithAssignments: TaskWithAssignment[] = filteredTasks
-        .filter((task: Task) => {
-          // If assigned_members is null, show to all members
-          if (!task.assigned_members || task.assigned_members.length === 0) {
-            return true;
-          }
-          // If user is admin, show all tasks
-          if (isAdmin) {
-            return true;
-          }
-          // Otherwise, only show if member is in assigned_members
-          return task.assigned_members.includes(member.id);
-        })
-        .map((task: Task) => {
-          const assignment = (assignments || []).find(
-            (a: TaskAssignment) => a.task_id === task.id
-          );
+            // Use the completed assignment if exists, otherwise check current user's assignment
+            const userAssignment = allAssignments.find(
+              (a: TaskAssignment) => a.member_id === member.id
+            );
 
-          return {
-            ...task,
-            assignment,
-          };
-        });
+            return {
+              ...task,
+              assignment: completedAssignment || userAssignment,
+            };
+          })
+      );
 
-      setTasks(tasksWithAssignments);
+      setTasks(tasksWithSharedStatus);
     } catch (err: any) {
       console.error('Error fetching tasks:', err);
       setError(err.message);
@@ -132,28 +143,52 @@ export const useTasks = (selectedDate: Date) => {
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // Check if assignment exists
-      const existingAssignments = await taskAssignmentsService.getByMemberAndDate(member.id, dateStr);
-      const existingAssignment = existingAssignments.find(a => a.task_id === taskId);
+      // Get the task to find all assigned members
+      const task = await tasksService.getById(taskId);
+      if (!task) throw new Error('Task not found');
 
-      if (existingAssignment) {
-        // Update existing assignment
-        await taskAssignmentsService.update(existingAssignment.id, {
-          completion_status: isCompleted ? 'completed' : 'pending',
-          ai_count_value: aiCountValue || null,
-          completed_at: isCompleted ? Timestamp.now() : null,
-        });
+      // Determine which members should have this task
+      let targetMemberIds: string[] = [];
+      
+      if (!task.assigned_members || task.assigned_members.length === 0) {
+        // Task assigned to all - get all approved members in organization
+        const allMembers = await membersService.getByOrganization(member.organization_id);
+        targetMemberIds = allMembers
+          .filter(m => m.status === 'approved')
+          .map(m => m.id);
       } else {
-        // Create new assignment
-        await taskAssignmentsService.create({
-          task_id: taskId,
-          member_id: member.id,
-          assigned_date: dateStr,
+        // Task assigned to specific members
+        targetMemberIds = task.assigned_members;
+      }
+
+      // Get all existing assignments for this task and date
+      const existingAssignments = await taskAssignmentsService.getByTaskAndDate(taskId, dateStr);
+
+      // Update or create assignments for ALL target members
+      const updatePromises = targetMemberIds.map(async (memberId) => {
+        const existingAssignment = existingAssignments.find(a => a.member_id === memberId);
+
+        const assignmentData = {
           completion_status: isCompleted ? 'completed' : 'pending',
           ai_count_value: aiCountValue || null,
           completed_at: isCompleted ? Timestamp.now() : null,
-        });
-      }
+        };
+
+        if (existingAssignment) {
+          // Update existing assignment
+          await taskAssignmentsService.update(existingAssignment.id, assignmentData);
+        } else {
+          // Create new assignment
+          await taskAssignmentsService.create({
+            task_id: taskId,
+            member_id: memberId,
+            assigned_date: dateStr,
+            ...assignmentData,
+          });
+        }
+      });
+
+      await Promise.all(updatePromises);
 
       // Refresh tasks
       await fetchTasks();

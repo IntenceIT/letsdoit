@@ -194,6 +194,16 @@ export const taskAssignmentsService = {
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TaskAssignment));
   },
 
+  async getByTaskAndDate(taskId: string, date: string): Promise<TaskAssignment[]> {
+    const q = query(
+      collection(db, COLLECTIONS.TASK_ASSIGNMENTS),
+      where('task_id', '==', taskId),
+      where('assigned_date', '==', date)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TaskAssignment));
+  },
+
   async update(id: string, data: Partial<TaskAssignmentInsert>): Promise<void> {
     const docRef = doc(db, COLLECTIONS.TASK_ASSIGNMENTS, id);
     await updateDoc(docRef, data);
