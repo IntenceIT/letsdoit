@@ -182,14 +182,23 @@ const Tasks: React.FC = () => {
               </span>
             )}
             {!isTodaySelected && (
-              <span className="inline-block px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-xs font-medium rounded-full mb-2">
+              <span 
+                className="inline-block px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-xs font-medium rounded-full mb-2 cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-900/30 transition-colors"
+                onClick={handleTodayClick}
+              >
                 View Only - Cannot Edit
               </span>
             )}
-            <h2 className="text-2xl font-bold text-foreground">
+            <h2 
+              className="text-2xl font-bold text-foreground cursor-pointer hover:text-primary transition-colors"
+              onClick={handleTodayClick}
+            >
               {format(selectedDate, 'EEEE')}
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p 
+              className="text-sm text-muted-foreground cursor-pointer hover:text-primary transition-colors"
+              onClick={handleTodayClick}
+            >
               {format(selectedDate, 'MMMM d, yyyy')}
             </p>
           </div>
