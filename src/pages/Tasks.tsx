@@ -68,11 +68,11 @@ const Tasks: React.FC = () => {
   });
 
   const handleComplete = async (taskId: string, isCompleted: boolean, aiCountValue?: string) => {
-    // Prevent marking tasks as done for past dates
-    if (isPastDate) {
+    // Only allow marking tasks as done for TODAY
+    if (!isTodaySelected) {
       toast({
-        title: 'Cannot Update Past Tasks',
-        description: 'You cannot mark tasks as done for past dates',
+        title: 'Cannot Update Tasks',
+        description: 'You can only mark tasks as done for today',
         variant: 'destructive',
       });
       return;
@@ -181,9 +181,9 @@ const Tasks: React.FC = () => {
                 Today
               </span>
             )}
-            {isPastDate && (
+            {!isTodaySelected && (
               <span className="inline-block px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-xs font-medium rounded-full mb-2">
-                Past Date - View Only
+                View Only - Cannot Edit
               </span>
             )}
             <h2 className="text-2xl font-bold text-foreground">
@@ -267,7 +267,7 @@ const Tasks: React.FC = () => {
                   onComplete={handleComplete}
                   onEdit={isAdmin ? handleEdit : undefined}
                   onDelete={isAdmin ? (id) => setTaskToDelete(id) : undefined}
-                  isPastDate={isPastDate}
+                  isToday={isTodaySelected}
                 />
               ))}
             </div>
