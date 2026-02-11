@@ -4,16 +4,17 @@ import { ListTodo, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTaskStats } from '@/hooks/useTasks';
 import BottomNav from '@/components/BottomNav';
-import DateSelector from '@/components/DateSelector';
 import StatCard from '@/components/StatCard';
 import CompletionChart from '@/components/CompletionChart';
 import TaskListPopup from '@/components/TaskListPopup';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { format } from 'date-fns';
 
 const Dashboard: React.FC = () => {
   const { user, isAdmin } = useAuth();
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  // Always use today's date for dashboard
+  const [selectedDate] = useState(new Date());
   const [showDonePopup, setShowDonePopup] = useState(false);
   const [showPendingPopup, setShowPendingPopup] = useState(false);
 
@@ -64,11 +65,17 @@ const Dashboard: React.FC = () => {
 
       {/* Content */}
       <div className="px-4 -mt-4 max-w-lg mx-auto space-y-4">
-        {/* Date Selector */}
-        <DateSelector
-          selectedDate={selectedDate}
-          onDateChange={setSelectedDate}
-        />
+        {/* Today's Date Display */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-card rounded-xl p-4 shadow-sm text-center"
+        >
+          <p className="text-sm text-muted-foreground mb-1">Today's Tasks</p>
+          <h2 className="text-lg font-bold text-foreground">
+            {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+          </h2>
+        </motion.div>
 
         {/* Stats Grid */}
         {isLoading ? (

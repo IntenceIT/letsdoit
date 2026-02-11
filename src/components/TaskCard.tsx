@@ -28,6 +28,7 @@ interface TaskCardProps {
   onComplete: (taskId: string, isCompleted: boolean, aiCountValue?: string) => Promise<void>;
   onEdit?: (task: TaskWithAssignment) => void;
   onDelete?: (taskId: string) => void;
+  isPastDate?: boolean;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
@@ -36,6 +37,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   onComplete,
   onEdit,
   onDelete,
+  isPastDate = false,
 }) => {
   const { isAdmin } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -44,8 +46,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   const isCompleted = task.assignment?.completion_status === 'completed';
-  const canEdit = isToday(selectedDate) || isAdmin;
-  const isPastDate = !isToday(selectedDate) && selectedDate < new Date();
+  const canEdit = (isToday(selectedDate) || isAdmin) && !isPastDate;
 
   const handleToggleComplete = async () => {
     if (!canEdit) return;
