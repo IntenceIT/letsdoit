@@ -119,7 +119,7 @@ const Members: React.FC = () => {
 
     setIsDeleting(true);
     try {
-      await deleteMember(memberToDelete.user_id);
+      await deleteMember(memberToDelete.id);
       toast({
         title: 'Member Deleted',
         description: `${memberToDelete.full_name} has been removed`,
@@ -141,8 +141,8 @@ const Members: React.FC = () => {
 
     setIsDeleting(true);
     try {
-      for (const userId of selectedMembers) {
-        await deleteMember(userId);
+      for (const memberId of selectedMembers) {
+        await deleteMember(memberId);
       }
       toast({
         title: 'Members Deleted',
@@ -161,11 +161,11 @@ const Members: React.FC = () => {
     }
   };
 
-  const toggleMemberSelection = (userId: string) => {
+  const toggleMemberSelection = (memberId: string) => {
     setSelectedMembers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+      prev.includes(memberId)
+        ? prev.filter((id) => id !== memberId)
+        : [...prev, memberId]
     );
   };
 
@@ -279,7 +279,7 @@ const Members: React.FC = () => {
           <AnimatePresence mode="popLayout">
             <div className="space-y-3">
               {filteredMembers.map((member) => {
-                const isCurrentUser = member.user_id === user?.id;
+                const isCurrentUser = member.id === user?.id;
                 const canDelete = !isCurrentUser && member.role !== 'admin';
 
                 return (
@@ -295,10 +295,10 @@ const Members: React.FC = () => {
                         <div className="flex items-center gap-3">
                           {bulkDeleteMode && canDelete && (
                             <button
-                              onClick={() => toggleMemberSelection(member.user_id)}
+                              onClick={() => toggleMemberSelection(member.id)}
                               className="shrink-0"
                             >
-                              {selectedMembers.includes(member.user_id) ? (
+                              {selectedMembers.includes(member.id) ? (
                                 <CheckSquare className="w-5 h-5 text-primary" />
                               ) : (
                                 <Square className="w-5 h-5 text-muted-foreground" />
