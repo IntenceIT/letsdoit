@@ -87,7 +87,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
         <Card
           className={cn(
             "overflow-hidden transition-all duration-200",
-            isCompleted && "bg-success/5 border-success/30"
+            isCompleted && "bg-green-50 dark:bg-green-950/20 border-green-300 dark:border-green-700"
           )}
         >
           <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -185,8 +185,18 @@ const TaskCard: React.FC<TaskCardProps> = ({
                       <span>
                         Completed
                         {task.completedByUser && ` by ${task.completedByUser}`}
-                        {task.assignment.completed_at &&
-                          ` at ${format(parseISO(task.assignment.completed_at), 'h:mm a')}`}
+                        {task.assignment.completed_at && (() => {
+                          try {
+                            const completedDate = typeof task.assignment.completed_at === 'string' 
+                              ? parseISO(task.assignment.completed_at)
+                              : task.assignment.completed_at instanceof Date
+                              ? task.assignment.completed_at
+                              : (task.assignment.completed_at as any).toDate?.() || new Date();
+                            return ` at ${format(completedDate, 'h:mm a')}`;
+                          } catch (e) {
+                            return '';
+                          }
+                        })()}
                       </span>
                     </div>
                   )}
@@ -226,9 +236,31 @@ const TaskCard: React.FC<TaskCardProps> = ({
                     <div>
                       <span className="font-medium text-muted-foreground">Date Range:</span>
                       <p className="mt-1 text-foreground">
-                        {task.start_date && format(parseISO(task.start_date), 'MMM d, yyyy')}
+                        {task.start_date && (() => {
+                          try {
+                            const startDate = typeof task.start_date === 'string'
+                              ? parseISO(task.start_date)
+                              : task.start_date instanceof Date
+                              ? task.start_date
+                              : (task.start_date as any).toDate?.() || new Date();
+                            return format(startDate, 'MMM d, yyyy');
+                          } catch (e) {
+                            return task.start_date.toString();
+                          }
+                        })()}
                         {task.start_date && task.end_date && ' - '}
-                        {task.end_date && format(parseISO(task.end_date), 'MMM d, yyyy')}
+                        {task.end_date && (() => {
+                          try {
+                            const endDate = typeof task.end_date === 'string'
+                              ? parseISO(task.end_date)
+                              : task.end_date instanceof Date
+                              ? task.end_date
+                              : (task.end_date as any).toDate?.() || new Date();
+                            return format(endDate, 'MMM d, yyyy');
+                          } catch (e) {
+                            return task.end_date.toString();
+                          }
+                        })()}
                       </p>
                     </div>
                   )}

@@ -49,12 +49,33 @@ export const useTasks = (selectedDate: Date) => {
         if (task.task_type === 'permanent') {
           return task.weekdays?.includes(dayName);
         } else {
-          const startDate = task.start_date ? new Date(task.start_date) : null;
-          const endDate = task.end_date ? new Date(task.end_date) : null;
-          const currentDate = selectedDate;
+          // Handle date comparison safely
+          let startDate: Date | null = null;
+          let endDate: Date | null = null;
 
-          const afterStart = !startDate || currentDate >= startDate;
-          const beforeEnd = !endDate || currentDate <= endDate;
+          if (task.start_date) {
+            if (typeof task.start_date === 'string') {
+              startDate = new Date(task.start_date);
+            } else if (task.start_date instanceof Date) {
+              startDate = task.start_date;
+            }
+          }
+
+          if (task.end_date) {
+            if (typeof task.end_date === 'string') {
+              endDate = new Date(task.end_date);
+            } else if (task.end_date instanceof Date) {
+              endDate = task.end_date;
+            }
+          }
+
+          // Compare dates (ignoring time)
+          const currentDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+          const startDateOnly = startDate ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()) : null;
+          const endDateOnly = endDate ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()) : null;
+
+          const afterStart = !startDateOnly || currentDateOnly >= startDateOnly;
+          const beforeEnd = !endDateOnly || currentDateOnly <= endDateOnly;
 
           return afterStart && beforeEnd;
         }
