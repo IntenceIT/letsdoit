@@ -1,6 +1,6 @@
 {
-  "name": "TaskFlow - Task Management",
-  "short_name": "TaskFlow",
+  "name": "Lets Do It - Task Management",
+  "short_name": "Lets Do It",
   "description": "Manage your daily tasks efficiently",
   "start_url": "/",
   "display": "standalone",

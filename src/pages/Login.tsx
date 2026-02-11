@@ -148,7 +148,7 @@ const Login: React.FC = () => {
               <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </motion.div>
-          <h1 className="text-2xl font-bold text-foreground">TaskFlow</h1>
+          <h1 className="text-2xl font-bold text-foreground">Lets Do It</h1>
           <p className="text-muted-foreground mt-1">Manage your tasks efficiently</p>
         </div>
 

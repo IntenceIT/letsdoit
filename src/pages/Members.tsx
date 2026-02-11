@@ -77,7 +77,7 @@ const Members: React.FC = () => {
   };
 
   const handleSendSMS = (member: Member) => {
-    const message = `Your login credentials for TaskFlow:\nEmail: ${member.email}\nPlease contact admin for password.`;
+    const message = `Your login credentials for Lets Do It:\nEmail: ${member.email}\nPlease contact admin for password.`;
     const smsUrl = `sms:${member.mobile_number || ''}?body=${encodeURIComponent(message)}`;
     window.open(smsUrl);
   };

@@ -104,7 +104,7 @@ const InstallPrompt: React.FC = () => {
                 </svg>
               </div>
 
-              <CardTitle className="text-xl">Install TaskFlow</CardTitle>
+              <CardTitle className="text-xl">Install Lets Do It</CardTitle>
               <CardDescription className="text-sm">
                 Get quick access from your home screen
               </CardDescription>

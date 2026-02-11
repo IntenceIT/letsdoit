@@ -10,11 +10,11 @@ export interface WhatsAppMessageData {
 }
 
 export const generateWhatsAppMessage = (data: WhatsAppMessageData): string => {
-  return `🎉 Welcome to TaskFlow!
+  return `🎉 Welcome to Lets Do It!
 
 Hi ${data.memberName}!
 
-You've been added to TaskFlow by ${data.adminName}.
+You've been added to Lets Do It by ${data.adminName}.
 
 📧 *Email:* ${data.memberEmail}
 🔐 *Password:* ${data.memberPassword}

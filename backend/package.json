@@ -1,7 +1,7 @@
 {
-  "name": "task-management-backend",
+  "name": "letsdoit-backend",
   "version": "1.0.0",
-  "description": "Task Management System Backend with Node.js and Express",
+  "description": "Lets Do It - Task Management System Backend with Node.js and Express",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
