@@ -123,10 +123,7 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     if (member.status === 'approved') {
       return <Navigate to="/dashboard" replace />;
     }
-    // If user is pending, go to pending page
-    if (member.status === 'pending') {
-      return <Navigate to="/pending-approval" replace />;
-    }
+    // If user is pending or rejected, stay on login page (handled by Login component)
   }
 
   return <>{children}</>;
@@ -144,9 +141,6 @@ const AppRoutes = () => {
           </PublicRoute>
         }
       />
-
-      {/* Pending Approval Route (special case - authenticated but not approved) */}
-      <Route path="/pending-approval" element={<PendingApproval />} />
 
       {/* Protected Routes */}
       <Route
