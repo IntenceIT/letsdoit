@@ -1,21 +1,43 @@
 import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Clock, Mail, LogOut } from 'lucide-react';
+import { Clock, Mail, LogOut, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/integrations/firebase/config';
 
 const PendingApproval: React.FC = () => {
   const { user, member, signOut, refreshMember } = useAuth();
+  const navigate = useNavigate();
 
-  // Check for approval every 5 seconds
+  // Real-time listener for member status changes
   useEffect(() => {
-    const interval = setInterval(() => {
-      refreshMember();
-    }, 5000); // Check every 5 seconds
+    if (!user?.id) return;
 
-    return () => clearInterval(interval);
-  }, [refreshMember]);
+    // Listen to member document changes in real-time
+    const memberDocRef = doc(db, 'members', user.id);
+    const unsubscribe = onSnapshot(memberDocRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const data = docSnapshot.data();
+        
+        // If status changed to approved, refresh and redirect
+        if (data.status === 'approved') {
+          refreshMember().then(() => {
+            navigate('/dashboard', { replace: true });
+          });
+        }
+        
+        // If status changed to rejected, sign out
+        if (data.status === 'rejected') {
+          signOut();
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user?.id, refreshMember, navigate, signOut]);
 
   return (
     <div className="min-h-screen bg-gradient-surface flex items-center justify-center p-4">
@@ -27,7 +49,7 @@ const PendingApproval: React.FC = () => {
         <Card className="border-2">
           <CardHeader className="text-center space-y-4">
             <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center">
-              <Clock className="w-8 h-8 text-yellow-600 dark:text-yellow-500" />
+              <Clock className="w-8 h-8 text-yellow-600 dark:text-yellow-500 animate-pulse" />
             </div>
             <div>
               <CardTitle className="text-2xl">Pending Approval</CardTitle>
@@ -63,6 +85,10 @@ const PendingApproval: React.FC = () => {
                   Please wait for an administrator to approve your access.
                   You'll be able to use the app once approved.
                 </p>
+                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-primary">
+                  <CheckCircle className="w-4 h-4 animate-pulse" />
+                  <span>Checking status automatically...</span>
+                </div>
               </div>
 
               <div className="pt-4 border-t">
