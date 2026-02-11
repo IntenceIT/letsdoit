@@ -58,10 +58,10 @@ const TaskListPopup: React.FC<TaskListPopupProps> = ({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
-                      <p className="font-medium text-sm">{task.title}</p>
-                      {task.description && (
+                      <p className="font-medium text-sm">{task.task_title}</p>
+                      {task.task_description && (
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {task.description}
+                          {task.task_description}
                         </p>
                       )}
                     </div>

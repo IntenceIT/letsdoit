@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ListTodo, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
+import { ListTodo, CheckCircle2, Clock, RefreshCw, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTaskStats } from '@/hooks/useTasks';
 import BottomNav from '@/components/BottomNav';
@@ -9,14 +9,16 @@ import CompletionChart from '@/components/CompletionChart';
 import TaskListPopup from '@/components/TaskListPopup';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { format, isToday } from 'date-fns';
 
 const Dashboard: React.FC = () => {
   const { user, isAdmin } = useAuth();
-  // Always use today's date for dashboard
-  const [selectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDonePopup, setShowDonePopup] = useState(false);
   const [showPendingPopup, setShowPendingPopup] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const {
     totalTasks,
@@ -33,6 +35,17 @@ const Dashboard: React.FC = () => {
     if (hour < 12) return 'Good Morning';
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setSelectedDate(date);
+      setIsCalendarOpen(false);
+    }
+  };
+
+  const handleTodayClick = () => {
+    setSelectedDate(new Date());
   };
 
   return (
@@ -69,47 +82,78 @@ const Dashboard: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-card rounded-xl p-4 shadow-sm text-center"
+          className="bg-card rounded-xl p-4 shadow-sm"
         >
-          <p className="text-sm text-muted-foreground mb-1">Today's Tasks</p>
-          <h2 className="text-lg font-bold text-foreground">
-            {format(selectedDate, 'EEEE, MMMM d, yyyy')}
-          </h2>
+          <div className="flex items-center justify-between">
+            <div className="flex-1 text-center">
+              <p className="text-sm text-muted-foreground mb-1">
+                {isToday(selectedDate) ? "Today's Tasks" : "Tasks for"}
+              </p>
+              <h2 
+                className="text-lg font-bold text-foreground cursor-pointer hover:text-primary transition-colors"
+                onClick={handleTodayClick}
+              >
+                {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+              </h2>
+            </div>
+            <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 ml-2"
+                >
+                  <Calendar className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <CalendarComponent
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={handleDateSelect}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </motion.div>
 
-        {/* Stats Grid */}
+        {/* Stats - Total with Done/Pending Breakdown */}
         {isLoading ? (
-          <div className="grid grid-cols-3 gap-3">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
-            ))}
-          </div>
+          <Skeleton className="h-28 rounded-xl" />
         ) : (
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard
-              title="Total"
-              value={totalTasks}
-              icon={ListTodo}
-              variant="primary"
-              delay={0}
-            />
-            <StatCard
-              title="Done"
-              value={doneTasks}
-              icon={CheckCircle2}
-              variant="success"
-              onClick={() => setShowDonePopup(true)}
-              delay={0.1}
-            />
-            <StatCard
-              title="Pending"
-              value={pendingTasks}
-              icon={Clock}
-              variant="warning"
-              onClick={() => setShowPendingPopup(true)}
-              delay={0.2}
-            />
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-xl p-5 shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-primary/20">
+                  <ListTodo className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Total
+                  </p>
+                  <p className="text-3xl font-bold text-foreground">
+                    {totalTasks}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-success">{doneTasks}</p>
+                  <p className="text-xs text-muted-foreground">Done</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-destructive">{pendingTasks}</p>
+                  <p className="text-xs text-muted-foreground">Pending</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         )}
 
         {/* Completion Chart */}
@@ -121,6 +165,58 @@ const Dashboard: React.FC = () => {
             doneTasks={doneTasks}
             pendingTasks={pendingTasks}
           />
+        )}
+
+        {/* Task Status Cards */}
+        {isLoading ? (
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {/* Tasks Done Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              onClick={() => setShowDonePopup(true)}
+              className="bg-card rounded-xl p-5 shadow-sm cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all border border-success/20"
+            >
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-8 h-8 text-success" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-success">Tasks Done</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    View Details →
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Tasks Pending Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              onClick={() => setShowPendingPopup(true)}
+              className="bg-card rounded-xl p-5 shadow-sm cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all border border-warning/20"
+            >
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="w-16 h-16 rounded-full bg-warning/20 flex items-center justify-center">
+                  <Clock className="w-8 h-8 text-warning" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-warning">Tasks Pending</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    View Details →
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
 
         {/* Quick Actions */}
