@@ -49,7 +49,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   const canEdit = isToday;
 
   const handleToggleComplete = async () => {
-    if (!canEdit) return;
+    if (!canEdit || isLoading) return;
 
     if (!isCompleted && task.requires_ai_count) {
       setIsAiCountDialogOpen(true);
@@ -59,19 +59,23 @@ const TaskCard: React.FC<TaskCardProps> = ({
     setIsLoading(true);
     try {
       await onComplete(task.id, !isCompleted);
+    } catch (error) {
+      console.error('Failed to toggle task completion:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleAiCountSubmit = async () => {
-    if (!aiCountValue.trim()) return;
+    if (!aiCountValue.trim() || isLoading) return;
 
     setIsLoading(true);
     try {
       await onComplete(task.id, true, aiCountValue);
       setIsAiCountDialogOpen(false);
       setAiCountValue('');
+    } catch (error) {
+      console.error('Failed to submit AI count:', error);
     } finally {
       setIsLoading(false);
     }

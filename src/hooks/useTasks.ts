@@ -158,7 +158,7 @@ export const useTasks = (selectedDate: Date) => {
     if (!user || !member) return;
 
     try {
-      // Optimistic update
+      // Optimistic update - only update the specific task
       setTasks(prevTasks => 
         prevTasks.map(task => {
           if (task.id === taskId) {
@@ -166,6 +166,9 @@ export const useTasks = (selectedDate: Date) => {
               ...task,
               assignment: {
                 ...task.assignment,
+                task_id: taskId,
+                member_id: member.id,
+                assigned_date: dateStr,
                 completion_status: isCompleted ? 'completed' : 'pending',
                 ai_count_value: aiCountValue || null,
                 completed_at: isCompleted ? Timestamp.now() : null,
@@ -176,50 +179,30 @@ export const useTasks = (selectedDate: Date) => {
         })
       );
 
-      // Get the task from cached tasks
-      const task = allTasks.find(t => t.id === taskId);
-      if (!task) throw new Error('Task not found');
+      // Get existing assignment for CURRENT USER ONLY
+      const existingAssignment = assignments.find(
+        a => a.task_id === taskId && a.member_id === member.id
+      );
 
-      // Determine which members should have this task
-      let targetMemberIds: string[] = [];
-      
-      if (!task.assigned_members || task.assigned_members.length === 0) {
-        // Task assigned to all - only update current user's assignment
-        // (avoid fetching all members for performance)
-        targetMemberIds = [member.id];
+      const assignmentData = {
+        completion_status: isCompleted ? 'completed' : 'pending',
+        ai_count_value: aiCountValue || null,
+        completed_at: isCompleted ? Timestamp.now() : null,
+      };
+
+      if (existingAssignment) {
+        // Update existing assignment for current user
+        await taskAssignmentsService.update(existingAssignment.id, assignmentData);
       } else {
-        // Task assigned to specific members
-        targetMemberIds = task.assigned_members;
+        // Create new assignment for current user
+        await taskAssignmentsService.create({
+          task_id: taskId,
+          member_id: member.id,
+          assigned_date: dateStr,
+          ...assignmentData,
+        });
       }
 
-      // Get existing assignments from cache
-      const existingAssignments = assignments.filter(a => a.task_id === taskId);
-
-      // Update or create assignments for ALL target members
-      const updatePromises = targetMemberIds.map(async (memberId) => {
-        const existingAssignment = existingAssignments.find(a => a.member_id === memberId);
-
-        const assignmentData = {
-          completion_status: isCompleted ? 'completed' : 'pending',
-          ai_count_value: aiCountValue || null,
-          completed_at: isCompleted ? Timestamp.now() : null,
-        };
-
-        if (existingAssignment) {
-          // Update existing assignment
-          await taskAssignmentsService.update(existingAssignment.id, assignmentData);
-        } else {
-          // Create new assignment
-          await taskAssignmentsService.create({
-            task_id: taskId,
-            member_id: memberId,
-            assigned_date: dateStr,
-            ...assignmentData,
-          });
-        }
-      });
-
-      await Promise.all(updatePromises);
       // Real-time listener will update the UI automatically
     } catch (err: any) {
       console.error('Error updating task completion:', err);
@@ -227,7 +210,7 @@ export const useTasks = (selectedDate: Date) => {
       setTasks(processedTasks);
       throw err;
     }
-  }, [user, member, dateStr, allTasks, assignments, processedTasks]);
+  }, [user, member, dateStr, assignments, processedTasks]);
 
   const createTask = useCallback(async (taskData: {
     task_title: string;
