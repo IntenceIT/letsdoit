@@ -119,9 +119,9 @@ const Dashboard: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Stats - Total with Done/Pending Breakdown */}
+        {/* Stats - Compact Layout */}
         {isLoading ? (
-          <Skeleton className="h-28 rounded-xl" />
+          <Skeleton className="h-24 rounded-xl" />
         ) : (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -130,7 +130,7 @@ const Dashboard: React.FC = () => {
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-primary/20">
+                <div className="p-3 rounded-xl bg-primary/10">
                   <ListTodo className="w-6 h-6 text-primary" />
                 </div>
                 <div>
@@ -142,14 +142,14 @@ const Dashboard: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-success">{doneTasks}</p>
-                  <p className="text-xs text-muted-foreground">Done</p>
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-success">{doneTasks}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Done</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-destructive">{pendingTasks}</p>
-                  <p className="text-xs text-muted-foreground">Pending</p>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-destructive">{pendingTasks}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Pending</p>
                 </div>
               </div>
             </div>
@@ -158,7 +158,7 @@ const Dashboard: React.FC = () => {
 
         {/* Completion Chart */}
         {isLoading ? (
-          <Skeleton className="h-60 rounded-xl" />
+          <Skeleton className="h-80 rounded-xl" />
         ) : (
           <CompletionChart
             completionPercentage={completionPercentage}
@@ -167,11 +167,11 @@ const Dashboard: React.FC = () => {
           />
         )}
 
-        {/* Task Status Cards */}
+        {/* Task Status Cards - Bottom */}
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3">
-            <Skeleton className="h-32 rounded-xl" />
-            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-40 rounded-xl" />
+            <Skeleton className="h-40 rounded-xl" />
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
@@ -181,17 +181,11 @@ const Dashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
               onClick={() => setShowDonePopup(true)}
-              className="bg-card rounded-xl p-5 shadow-sm cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all border border-success/20"
+              className="bg-card rounded-xl p-6 shadow-sm cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all"
             >
-              <div className="flex flex-col items-center text-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center">
-                  <CheckCircle2 className="w-8 h-8 text-success" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-success">Tasks Done</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    View Details →
-                  </p>
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-10 h-10 text-success" />
                 </div>
               </div>
             </motion.div>
@@ -202,17 +196,11 @@ const Dashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
               onClick={() => setShowPendingPopup(true)}
-              className="bg-card rounded-xl p-5 shadow-sm cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all border border-warning/20"
+              className="bg-card rounded-xl p-6 shadow-sm cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all"
             >
-              <div className="flex flex-col items-center text-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-warning/20 flex items-center justify-center">
-                  <Clock className="w-8 h-8 text-warning" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-warning">Tasks Pending</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    View Details →
-                  </p>
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-20 h-20 rounded-full bg-warning/10 flex items-center justify-center">
+                  <Clock className="w-10 h-10 text-warning" />
                 </div>
               </div>
             </motion.div>
