@@ -11,6 +11,7 @@ import {
   orderBy,
   Timestamp,
   setDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from './config';
 import type {
@@ -145,6 +146,21 @@ export const tasksService = {
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
   },
 
+  subscribeToOrganization(organizationId: string, callback: (tasks: Task[]) => void): () => void {
+    const q = query(
+      collection(db, COLLECTIONS.TASKS),
+      where('organization_id', '==', organizationId),
+      orderBy('created_at', 'desc')
+    );
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const tasks = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+      callback(tasks);
+    });
+    
+    return unsubscribe;
+  },
+
   async update(id: string, data: Partial<TaskInsert>): Promise<void> {
     const docRef = doc(db, COLLECTIONS.TASKS, id);
     await updateDoc(docRef, {
@@ -202,6 +218,20 @@ export const taskAssignmentsService = {
     );
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TaskAssignment));
+  },
+
+  subscribeToDate(date: string, callback: (assignments: TaskAssignment[]) => void): () => void {
+    const q = query(
+      collection(db, COLLECTIONS.TASK_ASSIGNMENTS),
+      where('assigned_date', '==', date)
+    );
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const assignments = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TaskAssignment));
+      callback(assignments);
+    });
+    
+    return unsubscribe;
   },
 
   async update(id: string, data: Partial<TaskAssignmentInsert>): Promise<void> {

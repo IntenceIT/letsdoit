@@ -127,7 +127,37 @@ export const useTasks = (selectedDate: Date) => {
   };
 
   useEffect(() => {
+    if (!user || !member) {
+      setTasks([]);
+      setIsLoading(false);
+      return;
+    }
+
+    // Initial fetch
     fetchTasks();
+
+    // Set up real-time listener for tasks
+    const unsubscribeTasks = tasksService.subscribeToOrganization(
+      member.organization_id,
+      () => {
+        fetchTasks();
+      }
+    );
+
+    // Set up real-time listener for task assignments
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    const unsubscribeAssignments = taskAssignmentsService.subscribeToDate(
+      dateStr,
+      () => {
+        fetchTasks();
+      }
+    );
+
+    // Cleanup listeners on unmount
+    return () => {
+      unsubscribeTasks();
+      unsubscribeAssignments();
+    };
   }, [selectedDate, user, member]);
 
   const updateTaskCompletion = async (

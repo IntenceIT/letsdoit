@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ListTodo, CheckCircle2, Clock, RefreshCw, Calendar } from 'lucide-react';
+import { ListTodo, CheckCircle2, Clock, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTaskStats } from '@/hooks/useTasks';
 import BottomNav from '@/components/BottomNav';
@@ -218,24 +218,6 @@ const Dashboard: React.FC = () => {
             </motion.div>
           </div>
         )}
-
-        {/* Quick Actions */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="flex justify-center"
-        >
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => window.location.reload()}
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh Data
-          </Button>
-        </motion.div>
       </div>
 
       {/* Task List Popups */}
