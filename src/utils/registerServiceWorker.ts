@@ -3,27 +3,46 @@
 export const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
     try {
-      // Register the main service worker for offline support
+      // Unregister all existing service workers first
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const registration of registrations) {
+        await registration.unregister();
+        console.log('Unregistered old service worker');
+      }
+
+      // Clear all caches
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+        console.log('Cleared all caches');
+      }
+
+      // Register the new service worker
       const registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/'
+        scope: '/',
+        updateViaCache: 'none' // Don't cache the service worker file itself
       });
 
       console.log('Service Worker registered successfully:', registration.scope);
 
-      // Check for updates
+      // Force immediate update check
+      await registration.update();
+
+      // Check for updates periodically
+      setInterval(() => {
+        registration.update();
+      }, 60000); // Check every minute
+
+      // Handle updates
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New service worker available, prompt user to refresh
-              console.log('New service worker available! Please refresh.');
-              
-              // Optionally show a notification to user
-              if (confirm('New version available! Refresh to update?')) {
-                newWorker.postMessage({ type: 'SKIP_WAITING' });
-                window.location.reload();
-              }
+              console.log('New service worker available!');
+              // Auto-update without prompting
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
+              window.location.reload();
             }
           });
         }

@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Component, ErrorInfo, ReactNode, lazy, Suspense } from "react";
 import InstallPrompt from "@/components/InstallPrompt";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
 // Lazy load pages for better initial load performance
 const Login = lazy(() => import("./pages/Login"));
@@ -29,14 +30,7 @@ const queryClient = new QueryClient({
 });
 
 // Loading component for Suspense fallback
-const PageLoader = () => (
-  <div className="min-h-screen bg-gradient-surface flex items-center justify-center">
-    <div className="flex flex-col items-center gap-3">
-      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      <p className="text-muted-foreground text-sm">Loading...</p>
-    </div>
-  </div>
-);
+const PageLoader = () => <LoadingSpinner />;
 
 // Error Boundary Component
 class ErrorBoundary extends Component<
@@ -85,14 +79,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const { user, member, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-surface flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (!user) {
@@ -101,14 +88,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   // Wait for member data to load
   if (!member) {
-    return (
-      <div className="min-h-screen bg-gradient-surface flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">Loading member data...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading member data..." />;
   }
 
   // Check if member is pending approval
@@ -129,14 +109,7 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, member, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-surface flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (user && member) {
