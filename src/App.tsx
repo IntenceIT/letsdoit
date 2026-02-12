@@ -214,6 +214,9 @@ const AppRoutes = () => {
         }
       />
 
+      {/* Pending Approval Route */}
+      <Route path="/pending-approval" element={<PendingApproval />} />
+
       {/* Catch all */}
       <Route path="*" element={<NotFound />} />
     </Routes>
