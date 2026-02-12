@@ -4,19 +4,39 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { Component, ErrorInfo, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode, lazy, Suspense } from "react";
 import InstallPrompt from "@/components/InstallPrompt";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Tasks from "./pages/Tasks";
-import AddTask from "./pages/AddTask";
-import Profile from "./pages/Profile";
-import Members from "./pages/Members";
-import AddMember from "./pages/AddMember";
-import PendingApproval from "./pages/PendingApproval";
-import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Lazy load pages for better initial load performance
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Tasks = lazy(() => import("./pages/Tasks"));
+const AddTask = lazy(() => import("./pages/AddTask"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Members = lazy(() => import("./pages/Members"));
+const AddMember = lazy(() => import("./pages/AddMember"));
+const PendingApproval = lazy(() => import("./pages/PendingApproval"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+// Loading component for Suspense fallback
+const PageLoader = () => (
+  <div className="min-h-screen bg-gradient-surface flex items-center justify-center">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <p className="text-muted-foreground text-sm">Loading...</p>
+    </div>
+  </div>
+);
 
 // Error Boundary Component
 class ErrorBoundary extends Component<
@@ -132,7 +152,8 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const AppRoutes = () => {
   return (
-    <Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
       {/* Public Routes */}
       <Route
         path="/"
@@ -196,6 +217,7 @@ const AppRoutes = () => {
       {/* Catch all */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
   );
 };
 

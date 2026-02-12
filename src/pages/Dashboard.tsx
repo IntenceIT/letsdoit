@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ListTodo, CheckCircle2, Clock, Calendar } from 'lucide-react';
+import { ListTodo, CheckCircle2, Clock, Calendar, BadgeCheck, Timer } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTaskStats } from '@/hooks/useTasks';
 import BottomNav from '@/components/BottomNav';
@@ -181,11 +181,20 @@ const Dashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
               onClick={() => setShowDonePopup(true)}
-              className="bg-card rounded-xl p-6 shadow-sm cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all"
+              className="bg-gradient-to-br from-emerald-50 to-green-100 dark:from-emerald-950 dark:to-green-900 rounded-2xl p-6 shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-2 border-emerald-200 dark:border-emerald-800"
             >
-              <div className="flex flex-col items-center text-center space-y-4">
-                <div className="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center">
-                  <CheckCircle2 className="w-10 h-10 text-success" />
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center shadow-xl">
+                    <span className="text-5xl">✓</span>
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center shadow-md">
+                    <span className="text-xs">✨</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">{doneTasks}</p>
+                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 mt-1">Tasks Completed</p>
                 </div>
               </div>
             </motion.div>
@@ -196,11 +205,20 @@ const Dashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
               onClick={() => setShowPendingPopup(true)}
-              className="bg-card rounded-xl p-6 shadow-sm cursor-pointer hover:shadow-lg active:scale-[0.98] transition-all"
+              className="bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-950 dark:to-orange-900 rounded-2xl p-6 shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-2 border-amber-200 dark:border-amber-800"
             >
-              <div className="flex flex-col items-center text-center space-y-4">
-                <div className="w-20 h-20 rounded-full bg-warning/10 flex items-center justify-center">
-                  <Clock className="w-10 h-10 text-warning" />
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center shadow-xl">
+                    <span className="text-5xl">⏱</span>
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-md animate-pulse">
+                    <span className="text-xs">!</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">{pendingTasks}</p>
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 mt-1">Tasks Pending</p>
                 </div>
               </div>
             </motion.div>
