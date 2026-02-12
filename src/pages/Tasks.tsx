@@ -238,7 +238,7 @@ const Tasks: React.FC = () => {
       </motion.header>
 
       {/* Task List */}
-      <div className="px-4 max-w-lg mx-auto">
+      <div className="px-4 pt-6 max-w-lg mx-auto">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />

@@ -1,18 +1,18 @@
 // Service Worker for Lets Do It PWA
 // Network-first strategy to always get fresh content
 
-const CACHE_NAME = 'letsdoit-v3.0';
-const RUNTIME_CACHE = 'letsdoit-runtime-v3.0';
+const CACHE_NAME = 'letsdoit-v4.1';
+const RUNTIME_CACHE = 'letsdoit-runtime-v4.1';
 
 // Install event - skip waiting to activate immediately
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing v3.0...');
+  console.log('Service Worker: Installing v4.1...');
   self.skipWaiting();
 });
 
 // Activate event - clean up ALL old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating v3.0...');
+  console.log('Service Worker: Activating v4.1...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(

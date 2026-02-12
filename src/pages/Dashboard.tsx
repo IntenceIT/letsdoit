@@ -169,19 +169,19 @@ const Dashboard: React.FC = () => {
 
         {/* Task Status Cards - Bottom */}
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mt-8">
             <Skeleton className="h-40 rounded-xl" />
             <Skeleton className="h-40 rounded-xl" />
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mt-8">
             {/* Tasks Done Card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
               onClick={() => setShowDonePopup(true)}
-              className="bg-gradient-to-br from-emerald-50 to-green-100 dark:from-emerald-950 dark:to-green-900 rounded-2xl p-6 shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-2 border-emerald-200 dark:border-emerald-800"
+              className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-2 border-emerald-500 dark:border-emerald-600"
             >
               <div className="flex flex-col items-center text-center space-y-3">
                 <div className="relative">
@@ -205,7 +205,7 @@ const Dashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
               onClick={() => setShowPendingPopup(true)}
-              className="bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-950 dark:to-orange-900 rounded-2xl p-6 shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-2 border-amber-200 dark:border-amber-800"
+              className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-2 border-orange-500 dark:border-orange-600"
             >
               <div className="flex flex-col items-center text-center space-y-3">
                 <div className="relative">
