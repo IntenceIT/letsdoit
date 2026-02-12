@@ -1,7 +1,7 @@
 // Service Worker for Lets Do It PWA
 // Handles offline caching and app shell
 
-const CACHE_NAME = 'letsdoit-v1';
+const CACHE_NAME = 'letsdoit-v2';
 const urlsToCache = [
   '/',
   '/index.html',
