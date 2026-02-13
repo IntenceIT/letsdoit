@@ -11,11 +11,13 @@ import {
   Loader2
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMembers } from '@/hooks/useMembers';
 import BottomNav from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +34,7 @@ const Profile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, isAdmin, signOut } = useAuth();
+  const { pendingCount } = useMembers();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -164,13 +167,28 @@ const Profile: React.FC = () => {
                     <button
                       key={index}
                       onClick={item.onClick}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
+                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors relative"
                     >
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 relative">
                         <item.icon className="w-5 h-5 text-primary" />
+                        {item.label === 'View Members' && pendingCount > 0 && (
+                          <Badge 
+                            variant="destructive" 
+                            className="absolute -top-1 -right-1 h-5 min-w-5 flex items-center justify-center px-1.5 text-xs font-bold rounded-full"
+                          >
+                            {pendingCount}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex-1 text-left">
-                        <p className="text-sm font-medium">{item.label}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{item.label}</p>
+                          {item.label === 'View Members' && pendingCount > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {pendingCount} pending
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {item.description}
                         </p>

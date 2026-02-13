@@ -11,6 +11,9 @@ export const useMembers = () => {
   const [error, setError] = useState<string | null>(null);
   const { user, member, isAdmin } = useAuth();
 
+  // Calculate pending members count
+  const pendingCount = members.filter(m => m.status === 'pending').length;
+
   const fetchMembers = async () => {
     if (!member?.organization_id) return;
 
@@ -101,6 +104,7 @@ export const useMembers = () => {
     members,
     loading,
     error,
+    pendingCount,
     addMember,
     updateMember,
     deleteMember,

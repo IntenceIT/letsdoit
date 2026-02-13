@@ -45,7 +45,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   const [aiCountValue, setAiCountValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Use the assignment from props - this comes from the hook
+  // Check completion status from assignment
   const isCompleted = task.assignment?.completion_status === 'completed';
   const canEdit = isToday;
 
@@ -58,7 +58,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
       return;
     }
 
-    // If task requires AI count and we're marking it as done
+    // If task requires AI count and we're marking it as done (going from pending to completed)
     if (!isCompleted && task.requires_ai_count) {
       setIsAiCountDialogOpen(true);
       return;
@@ -69,7 +69,11 @@ const TaskCard: React.FC<TaskCardProps> = ({
     
     try {
       console.log(`Toggling task ${task.id} from ${isCompleted} to ${!isCompleted}`);
+      
+      // CRITICAL FIX: Always pass the opposite of current state
       await onComplete(task.id, !isCompleted);
+      
+      console.log(`Successfully toggled task ${task.id} to ${!isCompleted ? 'completed' : 'pending'}`);
     } catch (error) {
       console.error('Failed to toggle task completion:', error);
     } finally {
@@ -354,4 +358,4 @@ const TaskCard: React.FC<TaskCardProps> = ({
   );
 };
 
-export default TaskCard;  
+export default TaskCard;

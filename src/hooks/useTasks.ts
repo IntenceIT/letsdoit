@@ -34,7 +34,7 @@ export const useTasks = (selectedDate: Date) => {
     return Object.keys(WEEKDAY_MAP).find(key => WEEKDAY_MAP[key] === dayOfWeek) || '';
   }, [selectedDate]);
 
-  // Memoized filtered and processed tasks - THIS IS THE KEY FIX
+  // Memoized filtered and processed tasks
   const processedTasks = useMemo(() => {
     if (!member || allTasks.length === 0) return [];
 
@@ -94,7 +94,7 @@ export const useTasks = (selectedDate: Date) => {
         return task.assigned_members.includes(member.id);
       })
       .map((task: Task) => {
-        // CRITICAL FIX: Find assignments that match BOTH task_id AND assigned_date
+        // Find assignments that match BOTH task_id AND assigned_date
         const taskAssignments = assignments.filter(
           a => a.task_id === task.id && a.assigned_date === dateStr
         );
@@ -111,8 +111,7 @@ export const useTasks = (selectedDate: Date) => {
           (a: TaskAssignment) => a.member_id === member.id
         );
 
-        // IMPORTANT: Use completed assignment if exists, otherwise user's assignment
-        // This ensures we show the task as completed if ANYONE completed it
+        // Use completed assignment if exists, otherwise user's assignment
         const finalAssignment = completedAssignment || userAssignment;
 
         if (finalAssignment) {
@@ -181,7 +180,7 @@ export const useTasks = (selectedDate: Date) => {
     console.log(`Updating task ${taskId}: isCompleted=${isCompleted}, date=${dateStr}`);
 
     try {
-      // CRITICAL: Find assignment for THIS task on THIS date for THIS user
+      // Find assignment for THIS task on THIS date for THIS user
       const existingAssignment = assignments.find(
         a => a.task_id === taskId && 
              a.member_id === member.id && 
@@ -190,15 +189,25 @@ export const useTasks = (selectedDate: Date) => {
 
       console.log(`Existing assignment for task ${taskId}:`, existingAssignment);
 
-      const assignmentData = {
+      // CRITICAL FIX: Properly handle completion status toggle
+      const assignmentData: any = {
         completion_status: isCompleted ? ('completed' as const) : ('pending' as const),
-        ai_count_value: aiCountValue || null,
-        completed_at: isCompleted ? Timestamp.now() : null,
       };
 
+      // Only set these fields when marking as completed
+      if (isCompleted) {
+        assignmentData.ai_count_value = aiCountValue || null;
+        assignmentData.completed_at = Timestamp.now();
+      } else {
+        // Explicitly clear these fields when marking as pending
+        assignmentData.ai_count_value = null;
+        assignmentData.completed_at = null;
+      }
+
       if (existingAssignment) {
-        console.log(`Updating existing assignment ${existingAssignment.id}`);
+        console.log(`Updating existing assignment ${existingAssignment.id} to ${assignmentData.completion_status}`);
         await taskAssignmentsService.update(existingAssignment.id, assignmentData);
+        console.log(`Successfully updated assignment ${existingAssignment.id}`);
       } else {
         console.log(`Creating new assignment for task ${taskId}`);
         await taskAssignmentsService.create({
@@ -207,9 +216,10 @@ export const useTasks = (selectedDate: Date) => {
           assigned_date: dateStr,
           ...assignmentData,
         });
+        console.log(`Successfully created new assignment`);
       }
 
-      console.log(`Successfully updated task ${taskId}`);
+      console.log(`Task ${taskId} update complete`);
     } catch (err: any) {
       console.error('Error updating task completion:', err);
       throw err;
@@ -287,7 +297,6 @@ export const useTasks = (selectedDate: Date) => {
     updateTask,
     deleteTask,
     refetch: () => {
-      // Refetch is handled automatically by real-time listeners
       console.log('Refetch requested - real-time listeners will update automatically');
     },
   };

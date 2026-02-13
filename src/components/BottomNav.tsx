@@ -3,11 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 import { Home, ListTodo, PlusCircle, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMembers } from '@/hooks/useMembers';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 const BottomNav: React.FC = () => {
   const location = useLocation();
   const { isAdmin } = useAuth();
+  const { pendingCount } = useMembers();
 
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'Home' },
@@ -40,12 +43,22 @@ const BottomNav: React.FC = () => {
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 />
               )}
-              <Icon
-                className={cn(
-                  "w-6 h-6 transition-colors duration-200",
-                  isActive ? "text-primary" : "text-muted-foreground"
+              <div className="relative">
+                <Icon
+                  className={cn(
+                    "w-6 h-6 transition-colors duration-200",
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  )}
+                />
+                {item.path === '/profile' && isAdmin && pendingCount > 0 && (
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -top-2 -right-2 h-4 min-w-4 flex items-center justify-center px-1 text-[10px] font-bold rounded-full p-0"
+                  >
+                    {pendingCount}
+                  </Badge>
                 )}
-              />
+              </div>
               <span
                 className={cn(
                   "text-xs mt-1 font-medium transition-colors duration-200",
