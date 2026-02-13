@@ -34,36 +34,41 @@ export const useTasks = (selectedDate: Date) => {
     return Object.keys(WEEKDAY_MAP).find(key => WEEKDAY_MAP[key] === dayOfWeek) || '';
   }, [selectedDate]);
 
-  // Memoized filtered and processed tasks
+  // Memoized filtered and processed tasks - THIS IS THE KEY FIX
   const processedTasks = useMemo(() => {
     if (!member || allTasks.length === 0) return [];
+
+    console.log(`Processing tasks for ${dateStr}, member: ${member.id}`);
+    console.log(`Total tasks: ${allTasks.length}, Total assignments: ${assignments.length}`);
 
     // Filter tasks based on type and date
     const filteredTasks = allTasks.filter((task: Task) => {
       if (task.task_type === 'permanent') {
         return task.weekdays?.includes(dayName);
       } else {
-        // Handle date comparison safely
         let startDate: Date | null = null;
         let endDate: Date | null = null;
 
         if (task.start_date) {
           if (typeof task.start_date === 'string') {
             startDate = new Date(task.start_date);
-          } else if (task.start_date instanceof Date) {
-            startDate = task.start_date;
+          } else if (task.start_date && typeof task.start_date === 'object' && 'toDate' in task.start_date) {
+            startDate = (task.start_date as any).toDate();
+          } else {
+            startDate = task.start_date as Date;
           }
         }
 
         if (task.end_date) {
           if (typeof task.end_date === 'string') {
             endDate = new Date(task.end_date);
-          } else if (task.end_date instanceof Date) {
-            endDate = task.end_date;
+          } else if (task.end_date && typeof task.end_date === 'object' && 'toDate' in task.end_date) {
+            endDate = (task.end_date as any).toDate();
+          } else {
+            endDate = task.end_date as Date;
           }
         }
 
-        // Compare dates (ignoring time)
         const currentDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
         const startDateOnly = startDate ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()) : null;
         const endDateOnly = endDate ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()) : null;
@@ -75,42 +80,54 @@ export const useTasks = (selectedDate: Date) => {
       }
     });
 
+    console.log(`Filtered tasks for ${dayName}: ${filteredTasks.length}`);
+
     // Filter by member assignment and add assignment status
     const tasksWithAssignments: TaskWithAssignment[] = filteredTasks
       .filter((task: Task) => {
-        // If assigned_members is null, show to all members
         if (!task.assigned_members || task.assigned_members.length === 0) {
           return true;
         }
-        // If user is admin, show all tasks
         if (isAdmin) {
           return true;
         }
-        // Otherwise, only show if member is in assigned_members
         return task.assigned_members.includes(member.id);
       })
       .map((task: Task) => {
-        // Get assignments for this task from cached assignments
-        const taskAssignments = assignments.filter(a => a.task_id === task.id);
-        
-        // Find if ANY member has completed this task
+        // CRITICAL FIX: Find assignments that match BOTH task_id AND assigned_date
+        const taskAssignments = assignments.filter(
+          a => a.task_id === task.id && a.assigned_date === dateStr
+        );
+
+        console.log(`Task ${task.id}: Found ${taskAssignments.length} assignments for date ${dateStr}`);
+
+        // Find if ANY member completed this task on THIS DATE
         const completedAssignment = taskAssignments.find(
           (a: TaskAssignment) => a.completion_status === 'completed'
         );
 
-        // Use the completed assignment if exists, otherwise check current user's assignment
+        // Find current user's assignment for THIS DATE
         const userAssignment = taskAssignments.find(
           (a: TaskAssignment) => a.member_id === member.id
         );
 
+        // IMPORTANT: Use completed assignment if exists, otherwise user's assignment
+        // This ensures we show the task as completed if ANYONE completed it
+        const finalAssignment = completedAssignment || userAssignment;
+
+        if (finalAssignment) {
+          console.log(`Task ${task.id} assignment status: ${finalAssignment.completion_status}`);
+        }
+
         return {
           ...task,
-          assignment: completedAssignment || userAssignment,
+          assignment: finalAssignment,
         };
       });
 
+    console.log(`Final tasks with assignments: ${tasksWithAssignments.length}`);
     return tasksWithAssignments;
-  }, [allTasks, assignments, selectedDate, dayName, member, isAdmin]);
+  }, [allTasks, assignments, selectedDate, dayName, dateStr, member, isAdmin]);
 
   // Update tasks when processed tasks change
   useEffect(() => {
@@ -126,24 +143,25 @@ export const useTasks = (selectedDate: Date) => {
 
     setIsLoading(true);
 
-    // Set up real-time listener for tasks (only once per organization)
+    // Set up real-time listener for tasks
     const unsubscribeTasks = tasksService.subscribeToOrganization(
       member.organization_id,
       (fetchedTasks) => {
+        console.log(`Received ${fetchedTasks.length} tasks from Firestore`);
         setAllTasks(fetchedTasks);
         setIsLoading(false);
       }
     );
 
-    // Set up real-time listener for task assignments (updates when date changes)
+    // Set up real-time listener for task assignments
     const unsubscribeAssignments = taskAssignmentsService.subscribeToDate(
       dateStr,
       (fetchedAssignments) => {
+        console.log(`Received ${fetchedAssignments.length} assignments for ${dateStr}`);
         setAssignments(fetchedAssignments);
       }
     );
 
-    // Cleanup listeners on unmount
     return () => {
       unsubscribeTasks();
       unsubscribeAssignments();
@@ -155,46 +173,34 @@ export const useTasks = (selectedDate: Date) => {
     isCompleted: boolean, 
     aiCountValue?: string
   ) => {
-    if (!user || !member) return;
+    if (!user || !member) {
+      console.error('No user or member');
+      return;
+    }
+
+    console.log(`Updating task ${taskId}: isCompleted=${isCompleted}, date=${dateStr}`);
 
     try {
-      // Optimistic update - only update the specific task
-      setTasks(prevTasks => 
-        prevTasks.map(task => {
-          if (task.id === taskId) {
-            return {
-              ...task,
-              assignment: {
-                ...task.assignment,
-                task_id: taskId,
-                member_id: member.id,
-                assigned_date: dateStr,
-                completion_status: isCompleted ? 'completed' : 'pending',
-                ai_count_value: aiCountValue || null,
-                completed_at: isCompleted ? Timestamp.now() : null,
-              } as TaskAssignment
-            };
-          }
-          return task;
-        })
+      // CRITICAL: Find assignment for THIS task on THIS date for THIS user
+      const existingAssignment = assignments.find(
+        a => a.task_id === taskId && 
+             a.member_id === member.id && 
+             a.assigned_date === dateStr
       );
 
-      // Get existing assignment for CURRENT USER ONLY
-      const existingAssignment = assignments.find(
-        a => a.task_id === taskId && a.member_id === member.id
-      );
+      console.log(`Existing assignment for task ${taskId}:`, existingAssignment);
 
       const assignmentData = {
-        completion_status: isCompleted ? 'completed' : 'pending',
+        completion_status: isCompleted ? ('completed' as const) : ('pending' as const),
         ai_count_value: aiCountValue || null,
         completed_at: isCompleted ? Timestamp.now() : null,
       };
 
       if (existingAssignment) {
-        // Update existing assignment for current user
+        console.log(`Updating existing assignment ${existingAssignment.id}`);
         await taskAssignmentsService.update(existingAssignment.id, assignmentData);
       } else {
-        // Create new assignment for current user
+        console.log(`Creating new assignment for task ${taskId}`);
         await taskAssignmentsService.create({
           task_id: taskId,
           member_id: member.id,
@@ -203,14 +209,12 @@ export const useTasks = (selectedDate: Date) => {
         });
       }
 
-      // Real-time listener will update the UI automatically
+      console.log(`Successfully updated task ${taskId}`);
     } catch (err: any) {
       console.error('Error updating task completion:', err);
-      // Revert optimistic update on error
-      setTasks(processedTasks);
       throw err;
     }
-  }, [user, member, dateStr, assignments, processedTasks]);
+  }, [user, member, dateStr, assignments]);
 
   const createTask = useCallback(async (taskData: {
     task_title: string;
@@ -221,6 +225,7 @@ export const useTasks = (selectedDate: Date) => {
     weekdays?: string[];
     start_date?: string;
     end_date?: string;
+    assigned_members?: string[] | null;
   }) => {
     if (!isAdmin || !member) {
       throw new Error('Only admins can create tasks');
@@ -237,9 +242,9 @@ export const useTasks = (selectedDate: Date) => {
         weekdays: taskData.weekdays || null,
         start_date: taskData.start_date || null,
         end_date: taskData.end_date || null,
+        assigned_members: taskData.assigned_members || null,
       });
 
-      // Real-time listener will update automatically
       return data;
     } catch (err: any) {
       console.error('Error creating task:', err);
@@ -254,7 +259,6 @@ export const useTasks = (selectedDate: Date) => {
 
     try {
       await tasksService.update(taskId, updates);
-      // Real-time listener will update automatically
     } catch (err: any) {
       console.error('Error updating task:', err);
       throw err;
@@ -268,7 +272,6 @@ export const useTasks = (selectedDate: Date) => {
 
     try {
       await tasksService.delete(taskId);
-      // Real-time listener will update automatically
     } catch (err: any) {
       console.error('Error deleting task:', err);
       throw err;
@@ -283,6 +286,10 @@ export const useTasks = (selectedDate: Date) => {
     createTask,
     updateTask,
     deleteTask,
+    refetch: () => {
+      // Refetch is handled automatically by real-time listeners
+      console.log('Refetch requested - real-time listeners will update automatically');
+    },
   };
 };
 

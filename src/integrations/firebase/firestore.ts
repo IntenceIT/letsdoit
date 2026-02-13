@@ -60,7 +60,6 @@ export const organizationsService = {
 // Members
 export const membersService = {
   async create(data: MemberInsert): Promise<Member> {
-    // Use auth_user_id as document ID for better security rules
     const docRef = doc(db, COLLECTIONS.MEMBERS, data.auth_user_id);
     await setDoc(docRef, {
       ...data,
@@ -78,7 +77,6 @@ export const membersService = {
   },
 
   async getByAuthUserId(authUserId: string): Promise<Member | null> {
-    // Now we can directly get by document ID since we use auth_user_id as ID
     const docRef = doc(db, COLLECTIONS.MEMBERS, authUserId);
     const docSnap = await getDoc(docRef);
     return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as Member : null;
@@ -156,6 +154,8 @@ export const tasksService = {
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const tasks = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
       callback(tasks);
+    }, (error) => {
+      console.error('Error in tasks subscription:', error);
     });
     
     return unsubscribe;
@@ -174,15 +174,18 @@ export const tasksService = {
   },
 };
 
-// Task Assignments
+// Task Assignments - CRITICAL FIXES HERE
 export const taskAssignmentsService = {
   async create(data: TaskAssignmentInsert): Promise<TaskAssignment> {
+    console.log('Creating assignment:', data);
     const docRef = await addDoc(collection(db, COLLECTIONS.TASK_ASSIGNMENTS), {
       ...data,
       created_at: Timestamp.now(),
     });
     const docSnap = await getDoc(docRef);
-    return { id: docRef.id, ...docSnap.data() } as TaskAssignment;
+    const result = { id: docRef.id, ...docSnap.data() } as TaskAssignment;
+    console.log('Created assignment:', result);
+    return result;
   },
 
   async getById(id: string): Promise<TaskAssignment | null> {
@@ -220,23 +223,34 @@ export const taskAssignmentsService = {
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TaskAssignment));
   },
 
+  // CRITICAL: Subscribe to assignments for a specific date
+  // This ensures we only get assignments for the date we're viewing
   subscribeToDate(date: string, callback: (assignments: TaskAssignment[]) => void): () => void {
+    console.log(`Setting up subscription for date: ${date}`);
     const q = query(
       collection(db, COLLECTIONS.TASK_ASSIGNMENTS),
       where('assigned_date', '==', date)
     );
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const assignments = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TaskAssignment));
+      const assignments = querySnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as TaskAssignment));
+      console.log(`Received ${assignments.length} assignments for date ${date}`);
       callback(assignments);
+    }, (error) => {
+      console.error('Error in assignments subscription:', error);
     });
     
     return unsubscribe;
   },
 
   async update(id: string, data: Partial<TaskAssignmentInsert>): Promise<void> {
+    console.log(`Updating assignment ${id}:`, data);
     const docRef = doc(db, COLLECTIONS.TASK_ASSIGNMENTS, id);
     await updateDoc(docRef, data);
+    console.log(`Updated assignment ${id}`);
   },
 
   async delete(id: string): Promise<void> {

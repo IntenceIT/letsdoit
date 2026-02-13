@@ -34,9 +34,8 @@ const Tasks: React.FC = () => {
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  const { tasks, isLoading, error, refetch, updateTaskCompletion, deleteTask } = useTasks(selectedDate);
+  const { tasks, isLoading, error, updateTaskCompletion, deleteTask } = useTasks(selectedDate);
 
-  // Check if selected date is in the past
   const isPastDate = isBefore(startOfDay(selectedDate), startOfDay(new Date()));
   const isTodaySelected = isToday(selectedDate);
 
@@ -52,20 +51,29 @@ const Tasks: React.FC = () => {
     setSelectedDate(new Date());
   };
 
-  // Filter tasks based on search and status filter
-  const filteredTasks = tasks.filter((task) => {
-    const matchesSearch =
-      task.task_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.task_description?.toLowerCase().includes(searchQuery.toLowerCase());
+  // Filter and sort tasks - pending first, completed last
+  const filteredTasks = tasks
+    .filter((task) => {
+      const matchesSearch =
+        task.task_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        task.task_description?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    if (filter === 'done') {
-      return matchesSearch && task.assignment?.completion_status === 'completed';
-    }
-    if (filter === 'pending') {
-      return matchesSearch && task.assignment?.completion_status !== 'completed';
-    }
-    return matchesSearch;
-  });
+      if (filter === 'done') {
+        return matchesSearch && task.assignment?.completion_status === 'completed';
+      }
+      if (filter === 'pending') {
+        return matchesSearch && task.assignment?.completion_status !== 'completed';
+      }
+      return matchesSearch;
+    })
+    .sort((a, b) => {
+      const aCompleted = a.assignment?.completion_status === 'completed';
+      const bCompleted = b.assignment?.completion_status === 'completed';
+      
+      // Pending tasks (false) come before completed tasks (true)
+      if (aCompleted === bCompleted) return 0;
+      return aCompleted ? 1 : -1;
+    });
 
   const handleComplete = async (taskId: string, isCompleted: boolean, aiCountValue?: string) => {
     // Only allow marking tasks as done for TODAY
@@ -79,15 +87,16 @@ const Tasks: React.FC = () => {
     }
 
     try {
+      console.log(`Tasks page: Updating task ${taskId} to ${isCompleted ? 'completed' : 'pending'}`);
       await updateTaskCompletion(taskId, isCompleted, aiCountValue);
-      toast({
-        title: isCompleted ? 'Task Completed' : 'Task Marked Pending',
-        description: 'Task status updated successfully',
-      });
-    } catch (error) {
+      
+      // Don't show toast for every click - let the UI update naturally
+      // Only show errors
+    } catch (error: any) {
+      console.error('Failed to update task:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update task status',
+        description: error.message || 'Failed to update task status',
         variant: 'destructive',
       });
     }
@@ -97,7 +106,7 @@ const Tasks: React.FC = () => {
     navigate('/add-task', { state: { editTask: task } });
   };
 
-  const handleDelete = async () => {
+  const handleDeleteConfirm = async () => {
     if (!taskToDelete) return;
 
     try {
@@ -248,9 +257,6 @@ const Tasks: React.FC = () => {
           <div className="flex flex-col items-center justify-center py-12">
             <AlertCircle className="w-8 h-8 text-destructive mb-2" />
             <p className="text-destructive">{error}</p>
-            <Button variant="outline" size="sm" onClick={refetch} className="mt-4">
-              Try Again
-            </Button>
           </div>
         ) : filteredTasks.length === 0 ? (
           <motion.div
@@ -270,7 +276,7 @@ const Tasks: React.FC = () => {
             <div className="space-y-3">
               {filteredTasks.map((task) => (
                 <TaskCard
-                  key={task.id}
+                  key={`${task.id}-${selectedDate.toISOString()}`}
                   task={task}
                   selectedDate={selectedDate}
                   onComplete={handleComplete}
@@ -296,7 +302,7 @@ const Tasks: React.FC = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
+              onClick={handleDeleteConfirm}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete

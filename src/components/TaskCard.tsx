@@ -43,41 +43,58 @@ const TaskCard: React.FC<TaskCardProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isAiCountDialogOpen, setIsAiCountDialogOpen] = useState(false);
   const [aiCountValue, setAiCountValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
+  // Use the assignment from props - this comes from the hook
   const isCompleted = task.assignment?.completion_status === 'completed';
   const canEdit = isToday;
 
-  const handleToggleComplete = async () => {
-    if (!canEdit || isLoading) return;
+  const handleToggleComplete = async (e: React.MouseEvent) => {
+    // Prevent event bubbling
+    e.stopPropagation();
+    
+    if (!canEdit || isProcessing) {
+      console.log('Cannot edit:', { canEdit, isProcessing });
+      return;
+    }
 
+    // If task requires AI count and we're marking it as done
     if (!isCompleted && task.requires_ai_count) {
       setIsAiCountDialogOpen(true);
       return;
     }
 
-    setIsLoading(true);
+    // Mark as processing to prevent double clicks
+    setIsProcessing(true);
+    
     try {
+      console.log(`Toggling task ${task.id} from ${isCompleted} to ${!isCompleted}`);
       await onComplete(task.id, !isCompleted);
     } catch (error) {
       console.error('Failed to toggle task completion:', error);
     } finally {
-      setIsLoading(false);
+      // Add a small delay to prevent rapid re-clicks
+      setTimeout(() => {
+        setIsProcessing(false);
+      }, 500);
     }
   };
 
   const handleAiCountSubmit = async () => {
-    if (!aiCountValue.trim() || isLoading) return;
+    if (!aiCountValue.trim() || isProcessing) return;
 
-    setIsLoading(true);
+    setIsProcessing(true);
     try {
+      console.log(`Submitting AI count for task ${task.id}: ${aiCountValue}`);
       await onComplete(task.id, true, aiCountValue);
       setIsAiCountDialogOpen(false);
       setAiCountValue('');
     } catch (error) {
       console.error('Failed to submit AI count:', error);
     } finally {
-      setIsLoading(false);
+      setTimeout(() => {
+        setIsProcessing(false);
+      }, 500);
     }
   };
 
@@ -92,7 +109,8 @@ const TaskCard: React.FC<TaskCardProps> = ({
         <Card
           className={cn(
             "overflow-hidden transition-all duration-200",
-            isCompleted && "bg-green-50 dark:bg-green-950/20 border-green-300 dark:border-green-700"
+            isCompleted && "bg-green-50 dark:bg-green-950/20 border-green-300 dark:border-green-700",
+            isProcessing && "opacity-60 pointer-events-none"
           )}
         >
           <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -101,14 +119,14 @@ const TaskCard: React.FC<TaskCardProps> = ({
                 {/* Completion checkbox */}
                 <button
                   onClick={handleToggleComplete}
-                  disabled={!canEdit || isLoading}
+                  disabled={!canEdit || isProcessing}
                   className={cn(
                     "flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center",
                     "transition-all duration-200 touch-button",
                     isCompleted
                       ? "bg-success border-success"
                       : "border-muted-foreground/30 hover:border-primary",
-                    (!canEdit || isLoading) && "opacity-50 cursor-not-allowed"
+                    (!canEdit || isProcessing) && "opacity-50 cursor-not-allowed"
                   )}
                 >
                   {isCompleted && <Check className="w-4 h-4 text-success-foreground" />}
@@ -156,7 +174,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => onEdit?.(task)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEdit?.(task);
+                            }}
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
@@ -164,7 +185,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-destructive"
-                            onClick={() => onDelete?.(task.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete?.(task.id);
+                            }}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -192,11 +216,14 @@ const TaskCard: React.FC<TaskCardProps> = ({
                         {task.completedByUser && ` by ${task.completedByUser}`}
                         {task.assignment.completed_at && (() => {
                           try {
-                            const completedDate = typeof task.assignment.completed_at === 'string' 
-                              ? parseISO(task.assignment.completed_at)
-                              : task.assignment.completed_at instanceof Date
-                              ? task.assignment.completed_at
-                              : (task.assignment.completed_at as any).toDate?.() || new Date();
+                            let completedDate: Date;
+                            if (typeof task.assignment.completed_at === 'string') {
+                              completedDate = parseISO(task.assignment.completed_at);
+                            } else if (task.assignment.completed_at && typeof task.assignment.completed_at === 'object' && 'toDate' in task.assignment.completed_at) {
+                              completedDate = (task.assignment.completed_at as any).toDate();
+                            } else {
+                              completedDate = task.assignment.completed_at as unknown as Date;
+                            }
                             return ` at ${format(completedDate, 'h:mm a')}`;
                           } catch (e) {
                             return '';
@@ -243,11 +270,14 @@ const TaskCard: React.FC<TaskCardProps> = ({
                       <p className="mt-1 text-foreground">
                         {task.start_date && (() => {
                           try {
-                            const startDate = typeof task.start_date === 'string'
-                              ? parseISO(task.start_date)
-                              : task.start_date instanceof Date
-                              ? task.start_date
-                              : (task.start_date as any).toDate?.() || new Date();
+                            let startDate: Date;
+                            if (typeof task.start_date === 'string') {
+                              startDate = parseISO(task.start_date);
+                            } else if (task.start_date && typeof task.start_date === 'object' && 'toDate' in task.start_date) {
+                              startDate = (task.start_date as any).toDate();
+                            } else {
+                              startDate = task.start_date as Date;
+                            }
                             return format(startDate, 'MMM d, yyyy');
                           } catch (e) {
                             return task.start_date.toString();
@@ -256,11 +286,14 @@ const TaskCard: React.FC<TaskCardProps> = ({
                         {task.start_date && task.end_date && ' - '}
                         {task.end_date && (() => {
                           try {
-                            const endDate = typeof task.end_date === 'string'
-                              ? parseISO(task.end_date)
-                              : task.end_date instanceof Date
-                              ? task.end_date
-                              : (task.end_date as any).toDate?.() || new Date();
+                            let endDate: Date;
+                            if (typeof task.end_date === 'string') {
+                              endDate = parseISO(task.end_date);
+                            } else if (task.end_date && typeof task.end_date === 'object' && 'toDate' in task.end_date) {
+                              endDate = (task.end_date as any).toDate();
+                            } else {
+                              endDate = task.end_date as Date;
+                            }
                             return format(endDate, 'MMM d, yyyy');
                           } catch (e) {
                             return task.end_date.toString();
@@ -290,18 +323,29 @@ const TaskCard: React.FC<TaskCardProps> = ({
               placeholder="Enter AI count value..."
               value={aiCountValue}
               onChange={(e) => setAiCountValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && aiCountValue.trim()) {
+                  handleAiCountSubmit();
+                }
+              }}
               autoFocus
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAiCountDialogOpen(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsAiCountDialogOpen(false);
+                setAiCountValue('');
+              }}
+            >
               Cancel
             </Button>
             <Button
               onClick={handleAiCountSubmit}
-              disabled={!aiCountValue.trim() || isLoading}
+              disabled={!aiCountValue.trim() || isProcessing}
             >
-              Mark Complete
+              {isProcessing ? 'Submitting...' : 'Mark Complete'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -310,4 +354,4 @@ const TaskCard: React.FC<TaskCardProps> = ({
   );
 };
 
-export default TaskCard;
+export default TaskCard;  

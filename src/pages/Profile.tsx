@@ -6,7 +6,6 @@ import {
   Mail, 
   LogOut, 
   Users, 
-  UserPlus, 
   Shield,
   ChevronRight,
   Loader2
@@ -74,12 +73,6 @@ const Profile: React.FC = () => {
             label: 'View Members',
             description: 'Manage team members',
             onClick: () => navigate('/members'),
-          },
-          {
-            icon: UserPlus,
-            label: 'Add Member',
-            description: 'Add new team member',
-            onClick: () => navigate('/members/add'),
           },
         ]
       : []),
