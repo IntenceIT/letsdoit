@@ -180,26 +180,16 @@ const Members: React.FC = () => {
         className="bg-card border-b border-border px-4 pt-6 pb-4"
       >
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate('/profile')}
-                className="shrink-0"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-              <h1 className="text-xl font-bold text-foreground">Team Members</h1>
-            </div>
+          <div className="flex items-center gap-3 mb-4">
             <Button
-              size="sm"
-              onClick={() => navigate('/members/add')}
-              className="gap-1"
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/profile')}
+              className="shrink-0"
             >
-              <UserPlus className="w-4 h-4" />
-              Add
+              <ArrowLeft className="w-5 h-5" />
             </Button>
+            <h1 className="text-xl font-bold text-foreground">Team Members</h1>
           </div>
 
           {/* Search */}
@@ -215,16 +205,26 @@ const Members: React.FC = () => {
 
           {/* Bulk Actions */}
           <div className="flex items-center justify-between mt-3">
-            <div className="flex gap-2">
-              <Button
-                variant={showPendingOnly ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setShowPendingOnly(!showPendingOnly)}
-                className="gap-1"
-              >
-                <Clock className="w-4 h-4" />
-                Pending {pendingMembers.length > 0 && `(${pendingMembers.length})`}
-              </Button>
+            <Button
+              variant={showPendingOnly ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setShowPendingOnly(!showPendingOnly)}
+              className="gap-1"
+            >
+              <Clock className="w-4 h-4" />
+              New Member {pendingMembers.length > 0 && `(${pendingMembers.length})`}
+            </Button>
+            <div className="flex items-center gap-2">
+              {bulkDeleteMode && selectedMembers.length > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                >
+                  Delete ({selectedMembers.length})
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -233,19 +233,9 @@ const Members: React.FC = () => {
                   setSelectedMembers([]);
                 }}
               >
-                {bulkDeleteMode ? 'Cancel' : 'Bulk Delete'}
+                {bulkDeleteMode ? 'Cancel' : 'Delete'}
               </Button>
             </div>
-            {bulkDeleteMode && selectedMembers.length > 0 && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleBulkDelete}
-                disabled={isDeleting}
-              >
-                Delete ({selectedMembers.length})
-              </Button>
-            )}
           </div>
         </div>
       </motion.header>
@@ -435,6 +425,22 @@ const Members: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Floating Add Button */}
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ delay: 0.3 }}
+        className="fixed bottom-24 right-4 z-40"
+      >
+        <Button
+          size="lg"
+          onClick={() => navigate('/members/add')}
+          className="h-14 w-14 rounded-full shadow-lg gap-1"
+        >
+          <UserPlus className="w-6 h-6" />
+        </Button>
+      </motion.div>
 
       <BottomNav />
     </div>

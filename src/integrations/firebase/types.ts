@@ -37,6 +37,7 @@ export interface Task {
   weekdays: string[] | null;
   start_date: string | null;
   end_date: string | null;
+  today_only: boolean; // Flag for tasks that should only appear today with highlighting
   assigned_by_admin: string | null;
   assigned_members: string[] | null; // Array of member IDs, null means all members
   created_at: Timestamp;

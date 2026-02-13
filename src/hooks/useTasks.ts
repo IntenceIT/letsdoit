@@ -125,7 +125,21 @@ export const useTasks = (selectedDate: Date) => {
       });
 
     console.log(`Final tasks with assignments: ${tasksWithAssignments.length}`);
-    return tasksWithAssignments;
+    
+    // Sort tasks: today_only tasks first, then by completion status
+    return tasksWithAssignments.sort((a, b) => {
+      // Today only tasks come first
+      if (a.today_only && !b.today_only) return -1;
+      if (!a.today_only && b.today_only) return 1;
+      
+      // Then sort by completion status (pending first)
+      const aCompleted = a.assignment?.completion_status === 'completed';
+      const bCompleted = b.assignment?.completion_status === 'completed';
+      if (!aCompleted && bCompleted) return -1;
+      if (aCompleted && !bCompleted) return 1;
+      
+      return 0;
+    });
   }, [allTasks, assignments, selectedDate, dayName, dateStr, member, isAdmin]);
 
   // Update tasks when processed tasks change
@@ -235,6 +249,7 @@ export const useTasks = (selectedDate: Date) => {
     weekdays?: string[];
     start_date?: string;
     end_date?: string;
+    today_only?: boolean;
     assigned_members?: string[] | null;
   }) => {
     if (!isAdmin || !member) {
@@ -252,6 +267,7 @@ export const useTasks = (selectedDate: Date) => {
         weekdays: taskData.weekdays || null,
         start_date: taskData.start_date || null,
         end_date: taskData.end_date || null,
+        today_only: taskData.today_only || false,
         assigned_members: taskData.assigned_members || null,
       });
 

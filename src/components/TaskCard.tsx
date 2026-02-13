@@ -114,6 +114,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
           className={cn(
             "overflow-hidden transition-all duration-200",
             isCompleted && "bg-green-50 dark:bg-green-950/20 border-green-300 dark:border-green-700",
+            task.today_only && !isCompleted && "bg-primary/10 border-primary/50 border-2 shadow-lg",
             isProcessing && "opacity-60 pointer-events-none"
           )}
         >
@@ -158,6 +159,12 @@ const TaskCard: React.FC<TaskCardProps> = ({
                         >
                           {isCompleted ? 'DONE' : 'PENDING'}
                         </Badge>
+                        {task.today_only && (
+                          <Badge variant="default" className="text-2xs gap-1 bg-primary">
+                            <Clock className="w-3 h-3" />
+                            Today Only
+                          </Badge>
+                        )}
                         {task.requires_ai_count && (
                           <Badge variant="secondary" className="text-2xs gap-1">
                             <Brain className="w-3 h-3" />

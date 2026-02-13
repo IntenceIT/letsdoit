@@ -21,7 +21,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import {
@@ -38,7 +37,7 @@ const AddTask: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { user, isAdmin, member } = useAuth();
+  const { isAdmin } = useAuth();
   const { createTask, updateTask } = useTasks(new Date());
   const { members, loading: membersLoading } = useMembers();
 
@@ -64,8 +63,9 @@ const AddTask: React.FC = () => {
     editTask?.start_date ? new Date(editTask.start_date) : new Date()
   );
   const [endDate, setEndDate] = useState<Date | undefined>(
-    editTask?.end_date ? new Date(editTask.end_date) : undefined
+    editTask?.end_date ? new Date(editTask.end_date) : editTask?.start_date ? new Date(editTask.start_date) : new Date()
   );
+  const [isTodayOnly, setIsTodayOnly] = useState(editTask?.today_only || false);
   const [assignToAll, setAssignToAll] = useState(
     !editTask?.assigned_members || editTask.assigned_members.length === 0
   );
@@ -98,6 +98,15 @@ const AddTask: React.FC = () => {
     );
   };
 
+  const handleTodayOnlyToggle = (checked: boolean) => {
+    setIsTodayOnly(checked);
+    if (checked) {
+      // When "Today Only" is enabled, set both dates to today
+      setStartDate(today);
+      setEndDate(today);
+    }
+  };
+
   const handleAssignToAllToggle = (checked: boolean) => {
     setAssignToAll(checked);
     if (checked) {
@@ -117,8 +126,9 @@ const AddTask: React.FC = () => {
       if (selectedWeekdays.length === 0) return 'Select at least one weekday';
     } else {
       if (!startDate) return 'Start date is required for additional tasks';
+      if (!endDate) return 'End date is required for additional tasks';
       if (startDate && endDate && startDate > endDate) {
-        return 'End date must be after start date';
+        return 'End date must be on or after start date';
       }
     }
     
@@ -148,6 +158,7 @@ const AddTask: React.FC = () => {
         weekdays: taskType === 'permanent' ? selectedWeekdays : null,
         start_date: taskType === 'additional' && startDate ? format(startDate, 'yyyy-MM-dd') : null,
         end_date: taskType === 'additional' && endDate ? format(endDate, 'yyyy-MM-dd') : null,
+        today_only: taskType === 'additional' ? isTodayOnly : false,
         assigned_members: assignToAll ? null : selectedMembers,
       };
 
@@ -217,59 +228,180 @@ const AddTask: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <RadioGroup
-                value={taskType}
-                onValueChange={(v) => setTaskType(v as 'permanent' | 'additional')}
-                className="grid grid-cols-2 gap-3"
-              >
-                <div>
-                  <RadioGroupItem
-                    value="permanent"
-                    id="permanent"
-                    className="peer sr-only"
-                  />
-                  <Label
-                    htmlFor="permanent"
-                    className={cn(
-                      "flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 cursor-pointer",
-                      "hover:bg-accent hover:text-accent-foreground",
-                      "peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5"
-                    )}
-                  >
-                    <RotateCcw className="w-5 h-5 mb-2" />
-                    <span className="font-medium">Permanent</span>
-                    <span className="text-xs text-muted-foreground">Weekly repeat</span>
-                  </Label>
-                </div>
-                <div>
-                  <RadioGroupItem
-                    value="additional"
-                    id="additional"
-                    className="peer sr-only"
-                  />
-                  <Label
-                    htmlFor="additional"
-                    className={cn(
-                      "flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 cursor-pointer",
-                      "hover:bg-accent hover:text-accent-foreground",
-                      "peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5"
-                    )}
-                  >
-                    <Calendar className="w-5 h-5 mb-2" />
-                    <span className="font-medium">Additional</span>
-                    <span className="text-xs text-muted-foreground">Date range</span>
-                  </Label>
-                </div>
-              </RadioGroup>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTaskType('permanent')}
+                  className={cn(
+                    "flex flex-col items-center justify-center rounded-lg border-2 p-4 cursor-pointer transition-all",
+                    taskType === 'permanent'
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-muted bg-popover hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <RotateCcw className="w-5 h-5 mb-2" />
+                  <span className="font-medium">Permanent</span>
+                  <span className="text-xs text-muted-foreground">Weekly repeat</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTaskType('additional')}
+                  className={cn(
+                    "flex flex-col items-center justify-center rounded-lg border-2 p-4 cursor-pointer transition-all",
+                    taskType === 'additional'
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-muted bg-popover hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <Calendar className="w-5 h-5 mb-2" />
+                  <span className="font-medium">Additional</span>
+                  <span className="text-xs text-muted-foreground">Date range</span>
+                </button>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Additional Task - Date Range (shown before Task Details) */}
+        {taskType === 'additional' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Date Range
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Today Only Toggle */}
+                <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg border-2 border-primary/20">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-primary" />
+                    <div>
+                      <Label htmlFor="today-only" className="cursor-pointer font-medium text-primary">
+                        Today Only
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Task will appear only for today with highlighting
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="today-only"
+                    checked={isTodayOnly}
+                    onCheckedChange={handleTodayOnlyToggle}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Start Date *</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          disabled={isTodayOnly}
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !startDate && "text-muted-foreground",
+                            isTodayOnly && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          {startDate ? format(startDate, 'MMM d, yyyy') : 'Select date'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <div className="p-3 border-b">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => {
+                              setStartDate(today);
+                              if (!endDate || endDate < today) {
+                                setEndDate(today);
+                              }
+                            }}
+                          >
+                            Today
+                          </Button>
+                        </div>
+                        <CalendarComponent
+                          mode="single"
+                          selected={startDate}
+                          onSelect={(date) => {
+                            setStartDate(date);
+                            // Auto-update end date if it's before the new start date
+                            if (date && endDate && endDate < date) {
+                              setEndDate(date);
+                            }
+                          }}
+                          disabled={(date) => date < today || date > maxDate}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date *</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          disabled={isTodayOnly}
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !endDate && "text-muted-foreground",
+                            isTodayOnly && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          {endDate ? format(endDate, 'MMM d, yyyy') : 'Select date'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <div className="p-3 border-b">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => setEndDate(today)}
+                            disabled={startDate ? startDate > today : false}
+                          >
+                            Today
+                          </Button>
+                        </div>
+                        <CalendarComponent
+                          mode="single"
+                          selected={endDate}
+                          onSelect={setEndDate}
+                          disabled={(date) => 
+                            date < (startDate || today) || date > maxDate
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+                {!isTodayOnly && (
+                  <p className="text-xs text-muted-foreground">
+                    Tip: Select the same date for both to create a single-day task
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Task Details */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: taskType === 'additional' ? 0.15 : 0.1 }}
         >
           <Card>
             <CardHeader className="pb-3">
@@ -339,7 +471,7 @@ const AddTask: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
+          transition={{ delay: taskType === 'additional' ? 0.2 : 0.15 }}
         >
           <Card>
             <CardHeader className="pb-3">
@@ -431,79 +563,6 @@ const AddTask: React.FC = () => {
                       </Label>
                     </div>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* Additional Task - Date Range */}
-        {taskType === 'additional' && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Date Range
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Start Date *</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !startDate && "text-muted-foreground"
-                          )}
-                        >
-                          {startDate ? format(startDate, 'MMM d, yyyy') : 'Select date'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={startDate}
-                          onSelect={setStartDate}
-                          disabled={(date) => date < today || date > maxDate}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !endDate && "text-muted-foreground"
-                          )}
-                        >
-                          {endDate ? format(endDate, 'MMM d, yyyy') : 'Optional'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={endDate}
-                          onSelect={setEndDate}
-                          disabled={(date) => 
-                            date < (startDate || today) || date > maxDate
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
                 </div>
               </CardContent>
             </Card>
