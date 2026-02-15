@@ -151,12 +151,17 @@ export const tasksService = {
       orderBy('created_at', 'desc')
     );
     
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const tasks = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
-      callback(tasks);
-    }, (error) => {
-      console.error('Error in tasks subscription:', error);
-    });
+    const unsubscribe = onSnapshot(
+      q, 
+      { includeMetadataChanges: false }, // Only trigger on actual data changes
+      (querySnapshot) => {
+        const tasks = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+        callback(tasks);
+      }, 
+      (error) => {
+        console.error('Error in tasks subscription:', error);
+      }
+    );
     
     return unsubscribe;
   },
@@ -177,15 +182,12 @@ export const tasksService = {
 // Task Assignments - CRITICAL FIXES HERE
 export const taskAssignmentsService = {
   async create(data: TaskAssignmentInsert): Promise<TaskAssignment> {
-    console.log('Creating assignment:', data);
     const docRef = await addDoc(collection(db, COLLECTIONS.TASK_ASSIGNMENTS), {
       ...data,
       created_at: Timestamp.now(),
     });
     const docSnap = await getDoc(docRef);
-    const result = { id: docRef.id, ...docSnap.data() } as TaskAssignment;
-    console.log('Created assignment:', result);
-    return result;
+    return { id: docRef.id, ...docSnap.data() } as TaskAssignment;
   },
 
   async getById(id: string): Promise<TaskAssignment | null> {
@@ -226,31 +228,32 @@ export const taskAssignmentsService = {
   // CRITICAL: Subscribe to assignments for a specific date
   // This ensures we only get assignments for the date we're viewing
   subscribeToDate(date: string, callback: (assignments: TaskAssignment[]) => void): () => void {
-    console.log(`Setting up subscription for date: ${date}`);
     const q = query(
       collection(db, COLLECTIONS.TASK_ASSIGNMENTS),
       where('assigned_date', '==', date)
     );
     
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const assignments = querySnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      } as TaskAssignment));
-      console.log(`Received ${assignments.length} assignments for date ${date}`);
-      callback(assignments);
-    }, (error) => {
-      console.error('Error in assignments subscription:', error);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      { includeMetadataChanges: false }, // Only trigger on actual data changes
+      (querySnapshot) => {
+        const assignments = querySnapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        } as TaskAssignment));
+        callback(assignments);
+      }, 
+      (error) => {
+        console.error('Error in assignments subscription:', error);
+      }
+    );
     
     return unsubscribe;
   },
 
   async update(id: string, data: Partial<TaskAssignmentInsert>): Promise<void> {
-    console.log(`Updating assignment ${id}:`, data);
     const docRef = doc(db, COLLECTIONS.TASK_ASSIGNMENTS, id);
     await updateDoc(docRef, data);
-    console.log(`Updated assignment ${id}`);
   },
 
   async delete(id: string): Promise<void> {

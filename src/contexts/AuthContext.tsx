@@ -73,13 +73,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Initialize auth state
   useEffect(() => {
+    let isMounted = true;
+    
     // Listen for auth changes
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      if (!isMounted) return;
+      
       try {
         if (authUser) {
           const memberData = await fetchMemberData(authUser);
           
-          if (memberData) {
+          if (memberData && isMounted) {
             setUser({
               id: authUser.uid,
               email: authUser.email || '',
@@ -96,11 +100,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Error in auth state change:', error);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
@@ -222,16 +231,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: userName.trim(),
           email: email,
           role: isAdminUser ? 'admin' : 'member',
-          status: isAdminUser ? 'approved' : 'pending', // Admin auto-approved, others pending
+          status: isAdminUser ? 'approved' : 'pending',
           mobile_number: firebaseUser.phoneNumber || null,
+          fcm_token: null,
           last_login_at: null,
         });
-
-        console.log('New member created:', memberData);
       }
-
-      // Skip last login update for now (not critical)
-      // Will be updated when admin approves
 
       setUser({
         id: firebaseUser.uid,

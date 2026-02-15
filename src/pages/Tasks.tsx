@@ -87,11 +87,7 @@ const Tasks: React.FC = () => {
     }
 
     try {
-      console.log(`Tasks page: Updating task ${taskId} to ${isCompleted ? 'completed' : 'pending'}`);
       await updateTaskCompletion(taskId, isCompleted, aiCountValue);
-      
-      // Don't show toast for every click - let the UI update naturally
-      // Only show errors
     } catch (error: any) {
       console.error('Failed to update task:', error);
       toast({

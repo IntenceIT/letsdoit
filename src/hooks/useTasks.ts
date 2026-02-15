@@ -38,9 +38,6 @@ export const useTasks = (selectedDate: Date) => {
   const processedTasks = useMemo(() => {
     if (!member || allTasks.length === 0) return [];
 
-    console.log(`Processing tasks for ${dateStr}, member: ${member.id}`);
-    console.log(`Total tasks: ${allTasks.length}, Total assignments: ${assignments.length}`);
-
     // Filter tasks based on type and date
     const filteredTasks = allTasks.filter((task: Task) => {
       if (task.task_type === 'permanent') {
@@ -80,8 +77,6 @@ export const useTasks = (selectedDate: Date) => {
       }
     });
 
-    console.log(`Filtered tasks for ${dayName}: ${filteredTasks.length}`);
-
     // Filter by member assignment and add assignment status
     const tasksWithAssignments: TaskWithAssignment[] = filteredTasks
       .filter((task: Task) => {
@@ -99,8 +94,6 @@ export const useTasks = (selectedDate: Date) => {
           a => a.task_id === task.id && a.assigned_date === dateStr
         );
 
-        console.log(`Task ${task.id}: Found ${taskAssignments.length} assignments for date ${dateStr}`);
-
         // Find if ANY member completed this task on THIS DATE
         const completedAssignment = taskAssignments.find(
           (a: TaskAssignment) => a.completion_status === 'completed'
@@ -114,17 +107,11 @@ export const useTasks = (selectedDate: Date) => {
         // Use completed assignment if exists, otherwise user's assignment
         const finalAssignment = completedAssignment || userAssignment;
 
-        if (finalAssignment) {
-          console.log(`Task ${task.id} assignment status: ${finalAssignment.completion_status}`);
-        }
-
         return {
           ...task,
           assignment: finalAssignment,
         };
       });
-
-    console.log(`Final tasks with assignments: ${tasksWithAssignments.length}`);
     
     // Sort tasks: today_only tasks first, then by completion status
     return tasksWithAssignments.sort((a, b) => {
@@ -155,14 +142,16 @@ export const useTasks = (selectedDate: Date) => {
     }
 
     setIsLoading(true);
+    let isSubscribed = true;
 
     // Set up real-time listener for tasks
     const unsubscribeTasks = tasksService.subscribeToOrganization(
       member.organization_id,
       (fetchedTasks) => {
-        console.log(`Received ${fetchedTasks.length} tasks from Firestore`);
-        setAllTasks(fetchedTasks);
-        setIsLoading(false);
+        if (isSubscribed) {
+          setAllTasks(fetchedTasks);
+          setIsLoading(false);
+        }
       }
     );
 
@@ -170,12 +159,14 @@ export const useTasks = (selectedDate: Date) => {
     const unsubscribeAssignments = taskAssignmentsService.subscribeToDate(
       dateStr,
       (fetchedAssignments) => {
-        console.log(`Received ${fetchedAssignments.length} assignments for ${dateStr}`);
-        setAssignments(fetchedAssignments);
+        if (isSubscribed) {
+          setAssignments(fetchedAssignments);
+        }
       }
     );
 
     return () => {
+      isSubscribed = false;
       unsubscribeTasks();
       unsubscribeAssignments();
     };
@@ -186,12 +177,7 @@ export const useTasks = (selectedDate: Date) => {
     isCompleted: boolean, 
     aiCountValue?: string
   ) => {
-    if (!user || !member) {
-      console.error('No user or member');
-      return;
-    }
-
-    console.log(`Updating task ${taskId}: isCompleted=${isCompleted}, date=${dateStr}`);
+    if (!user || !member) return;
 
     try {
       // Find assignment for THIS task on THIS date for THIS user
@@ -200,8 +186,6 @@ export const useTasks = (selectedDate: Date) => {
              a.member_id === member.id && 
              a.assigned_date === dateStr
       );
-
-      console.log(`Existing assignment for task ${taskId}:`, existingAssignment);
 
       // CRITICAL FIX: Properly handle completion status toggle
       const assignmentData: any = {
@@ -219,21 +203,15 @@ export const useTasks = (selectedDate: Date) => {
       }
 
       if (existingAssignment) {
-        console.log(`Updating existing assignment ${existingAssignment.id} to ${assignmentData.completion_status}`);
         await taskAssignmentsService.update(existingAssignment.id, assignmentData);
-        console.log(`Successfully updated assignment ${existingAssignment.id}`);
       } else {
-        console.log(`Creating new assignment for task ${taskId}`);
         await taskAssignmentsService.create({
           task_id: taskId,
           member_id: member.id,
           assigned_date: dateStr,
           ...assignmentData,
         });
-        console.log(`Successfully created new assignment`);
       }
-
-      console.log(`Task ${taskId} update complete`);
     } catch (err: any) {
       console.error('Error updating task completion:', err);
       throw err;
@@ -313,7 +291,7 @@ export const useTasks = (selectedDate: Date) => {
     updateTask,
     deleteTask,
     refetch: () => {
-      console.log('Refetch requested - real-time listeners will update automatically');
+      // Real-time listeners will update automatically
     },
   };
 };
