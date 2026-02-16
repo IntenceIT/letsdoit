@@ -1,17 +1,29 @@
 // Service Worker for Lets Do It PWA
-// Optimized for fast loading - v7.0
-const CACHE_NAME = 'letsdoit-v7.0';
-const RUNTIME_CACHE = 'letsdoit-runtime-v7.0';
+// Optimized for fast loading - v8.0
+const CACHE_NAME = 'letsdoit-v8.0';
+const RUNTIME_CACHE = 'letsdoit-runtime-v8.0';
 
 // Install event - skip waiting immediately
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing v7.0 (Fast Load)...');
+  console.log('Service Worker: Installing v8.0 (Fast Load + Install Support)...');
   self.skipWaiting();
+  
+  // Notify clients about the new version
+  event.waitUntil(
+    self.clients.matchAll().then((clients) => {
+      clients.forEach((client) => {
+        client.postMessage({
+          type: 'SW_UPDATED',
+          version: '8.0'
+        });
+      });
+    })
+  );
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating v7.0 (Fast Load)...');
+  console.log('Service Worker: Activating v8.0 (Fast Load + Install Support)...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -23,8 +35,18 @@ self.addEventListener('activate', (event) => {
         })
       );
     }).then(() => {
-      console.log('Service Worker: v7.0 activated');
+      console.log('Service Worker: v8.0 activated and ready for install');
       return self.clients.claim();
+    }).then(() => {
+      // Notify all clients that SW is ready
+      return self.clients.matchAll().then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({
+            type: 'SW_READY',
+            version: '8.0'
+          });
+        });
+      });
     })
   );
 });

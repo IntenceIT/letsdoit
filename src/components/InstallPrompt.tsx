@@ -15,22 +15,34 @@ const InstallPrompt: React.FC = () => {
 
   useEffect(() => {
     // Check if already installed
-    const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
-    if (isInstalled) return;
+    const isInstalled = window.matchMedia('(display-mode: standalone)').matches ||
+                       (window.navigator as any).standalone === true;
+    if (isInstalled) {
+      console.log('App already installed');
+      return;
+    }
 
     // Check if user dismissed before
     const dismissed = localStorage.getItem('installPromptDismissed');
-    if (dismissed) return;
+    const dismissedTime = dismissed ? parseInt(dismissed) : 0;
+    const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
+    
+    // Show again after 7 days
+    if (dismissed && daysSinceDismissed < 7) {
+      console.log('Install prompt dismissed recently');
+      return;
+    }
 
     // Listen for beforeinstallprompt event
     const handler = (e: Event) => {
       e.preventDefault();
+      console.log('Install prompt available');
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       
-      // Show prompt after 2 seconds
+      // Show prompt after 3 seconds
       setTimeout(() => {
         setShowPrompt(true);
-      }, 2000);
+      }, 3000);
     };
 
     window.addEventListener('beforeinstallprompt', handler);
@@ -60,7 +72,8 @@ const InstallPrompt: React.FC = () => {
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    localStorage.setItem('installPromptDismissed', 'true');
+    // Store timestamp instead of just 'true'
+    localStorage.setItem('installPromptDismissed', Date.now().toString());
   };
 
   if (!showPrompt || !deferredPrompt) return null;
