@@ -8,7 +8,7 @@ import { Component, ErrorInfo, ReactNode, lazy, Suspense } from "react";
 import InstallPrompt from "@/components/InstallPrompt";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
-// Lazy load pages for better initial load performance
+// Lazy load pages - CRITICAL for performance
 const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Tasks = lazy(() => import("./pages/Tasks"));
@@ -19,18 +19,20 @@ const AddMember = lazy(() => import("./pages/AddMember"));
 const PendingApproval = lazy(() => import("./pages/PendingApproval"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+// Optimized QueryClient with shorter cache times
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
+      staleTime: 1000 * 30, // 30 seconds - reduced from 5 minutes
+      gcTime: 1000 * 60 * 2, // 2 minutes - reduced from 10 minutes
       refetchOnWindowFocus: false,
+      retry: 1, // Only retry once on failure
     },
   },
 });
 
-// Loading component for Suspense fallback
-const PageLoader = () => <LoadingSpinner />;
+// Minimal loading component
+const PageLoader = () => <LoadingSpinner message="Loading..." submessage="" />;
 
 // Error Boundary Component
 class ErrorBoundary extends Component<
@@ -79,24 +81,21 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const { user, member, isLoading } = useAuth();
 
   if (isLoading) {
-    return <LoadingSpinner />;
+    return <LoadingSpinner message="Checking authentication..." submessage="" />;
   }
 
   if (!user) {
     return <Navigate to="/" replace />;
   }
 
-  // Wait for member data to load
   if (!member) {
-    return <LoadingSpinner message="Loading member data..." />;
+    return <LoadingSpinner message="Loading profile..." submessage="" />;
   }
 
-  // Check if member is pending approval
   if (member.status === 'pending') {
     return <Navigate to="/pending-approval" replace />;
   }
 
-  // Check if member is rejected
   if (member.status === 'rejected') {
     return <Navigate to="/" replace />;
   }
@@ -104,20 +103,18 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
-// Public Route wrapper (redirects authenticated users)
+// Public Route wrapper
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, member, isLoading } = useAuth();
 
   if (isLoading) {
-    return <LoadingSpinner />;
+    return <LoadingSpinner message="Loading..." submessage="" />;
   }
 
   if (user && member) {
-    // If user is approved, go to dashboard
     if (member.status === 'approved') {
       return <Navigate to="/dashboard" replace />;
     }
-    // If user is pending or rejected, stay on login page (handled by Login component)
   }
 
   return <>{children}</>;
@@ -127,72 +124,72 @@ const AppRoutes = () => {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
-      {/* Public Routes */}
-      <Route
-        path="/"
-        element={
-          <PublicRoute>
-            <Login />
-          </PublicRoute>
-        }
-      />
+        {/* Public Routes */}
+        <Route
+          path="/"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
 
-      {/* Protected Routes */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tasks"
-        element={
-          <ProtectedRoute>
-            <Tasks />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/add-task"
-        element={
-          <ProtectedRoute>
-            <AddTask />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/members"
-        element={
-          <ProtectedRoute>
-            <Members />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/members/add"
-        element={
-          <ProtectedRoute>
-            <AddMember />
-          </ProtectedRoute>
-        }
-      />
+        {/* Protected Routes */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tasks"
+          element={
+            <ProtectedRoute>
+              <Tasks />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add-task"
+          element={
+            <ProtectedRoute>
+              <AddTask />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/members"
+          element={
+            <ProtectedRoute>
+              <Members />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/members/add"
+          element={
+            <ProtectedRoute>
+              <AddMember />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Pending Approval Route */}
-      <Route path="/pending-approval" element={<PendingApproval />} />
+        {/* Pending Approval Route */}
+        <Route path="/pending-approval" element={<PendingApproval />} />
 
-      {/* Catch all */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        {/* Catch all */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </Suspense>
   );
 };

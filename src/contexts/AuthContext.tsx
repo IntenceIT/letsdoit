@@ -44,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch member data from database
+  // Fetch member data - optimized
   const fetchMemberData = async (authUser: FirebaseUser) => {
     try {
       const memberData = await membersService.getByAuthUserId(authUser.uid);
@@ -71,11 +71,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Initialize auth state
+  // Optimized auth state initialization
   useEffect(() => {
     let isMounted = true;
     
-    // Listen for auth changes
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       if (!isMounted) return;
       
@@ -106,8 +105,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
+    // Set timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }, 5000);
+
     return () => {
       isMounted = false;
+      clearTimeout(timeout);
       unsubscribe();
     };
   }, []);
@@ -123,11 +130,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       }
 
-      // Fetch member data
       const memberData = await fetchMemberData(userCredential.user);
       
       if (!memberData) {
-        // If member doesn't exist, sign out
         await firebaseSignOut(auth);
         return { 
           success: false, 
@@ -178,13 +183,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const firebaseUser = result.user;
       const email = firebaseUser.email || '';
 
-      // Check if member already exists
       let memberData = await membersService.getByAuthUserId(firebaseUser.uid);
 
       if (!memberData) {
-        // New user - check if name was provided
         if (!userName) {
-          // Need to ask for name
           return {
             success: false,
             needsName: true,
@@ -192,15 +194,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
         }
 
-        // New user - check if admin email
         const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || 'yasirazimshaikh5440@gmail.com';
         const isAdminUser = email.toLowerCase() === adminEmail.toLowerCase();
 
-        // Get or create organization
         let organizationId: string;
         
         if (isAdminUser) {
-          // Admin user - create organization if doesn't exist
           const orgs = await organizationsService.getAll();
           if (orgs.length === 0) {
             const newOrg = await organizationsService.create({
@@ -212,7 +211,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             organizationId = orgs[0].id;
           }
         } else {
-          // Regular user - get existing organization
           const orgs = await organizationsService.getAll();
           if (orgs.length === 0) {
             await firebaseSignOut(auth);
@@ -224,7 +222,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           organizationId = orgs[0].id;
         }
 
-        // Create member document with provided name
         memberData = await membersService.create({
           auth_user_id: firebaseUser.uid,
           organization_id: organizationId,

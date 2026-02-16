@@ -1,24 +1,21 @@
 // Service Worker for Lets Do It PWA
-// Network-first strategy to always get fresh content
-// v6.0 - Performance optimizations applied
+// Optimized for fast loading - v7.0
+const CACHE_NAME = 'letsdoit-v7.0';
+const RUNTIME_CACHE = 'letsdoit-runtime-v7.0';
 
-const CACHE_NAME = 'letsdoit-v6.0';
-const RUNTIME_CACHE = 'letsdoit-runtime-v6.0';
-
-// Install event - skip waiting to activate immediately
+// Install event - skip waiting immediately
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing v6.0 (Performance Optimized)...');
+  console.log('Service Worker: Installing v7.0 (Fast Load)...');
   self.skipWaiting();
 });
 
-// Activate event - clean up ALL old caches
+// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating v6.0 (Performance Optimized)...');
+  console.log('Service Worker: Activating v7.0 (Fast Load)...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          // Delete ALL old caches to ensure fresh optimized code
           if (cacheName !== CACHE_NAME && cacheName !== RUNTIME_CACHE) {
             console.log('Service Worker: Deleting old cache:', cacheName);
             return caches.delete(cacheName);
@@ -26,57 +23,67 @@ self.addEventListener('activate', (event) => {
         })
       );
     }).then(() => {
-      console.log('Service Worker: v6.0 activated, claiming clients...');
+      console.log('Service Worker: v7.0 activated');
       return self.clients.claim();
     })
   );
 });
 
-// Fetch event - NETWORK FIRST strategy
+// Fetch event - OPTIMIZED for speed
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
-  if (event.request.method !== 'GET') {
-    return;
-  }
+  if (event.request.method !== 'GET') return;
+  
+  // Skip non-http requests
+  if (!event.request.url.startsWith('http')) return;
 
-  // Skip chrome-extension and other non-http requests
-  if (!event.request.url.startsWith('http')) {
+  // Skip Firebase API calls - always get fresh
+  if (event.request.url.includes('firestore.googleapis.com') || 
+      event.request.url.includes('firebase')) {
     return;
   }
 
   event.respondWith(
-    // Try network first
-    fetch(event.request)
-      .then((response) => {
-        // Check if valid response
+    // Try cache first for static assets
+    caches.match(event.request).then((cachedResponse) => {
+      // Return cached response immediately if found
+      if (cachedResponse) {
+        // Update cache in background
+        fetch(event.request).then((response) => {
+          if (response && response.status === 200) {
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(event.request, response);
+            });
+          }
+        }).catch(() => {});
+        
+        return cachedResponse;
+      }
+
+      // Not in cache, fetch from network
+      return fetch(event.request).then((response) => {
         if (!response || response.status !== 200) {
           return response;
         }
 
-        // Clone and cache the response for offline use
+        // Cache the response
         const responseToCache = response.clone();
         caches.open(RUNTIME_CACHE).then((cache) => {
           cache.put(event.request, responseToCache);
         });
 
         return response;
-      })
-      .catch(() => {
-        // Network failed, try cache
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          // Return offline page for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
-        });
-      })
+      }).catch(() => {
+        // Network failed, return offline page for navigation
+        if (event.request.mode === 'navigate') {
+          return caches.match('/index.html');
+        }
+      });
+    })
   );
 });
 
-// Listen for messages from the app
+// Listen for messages
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
