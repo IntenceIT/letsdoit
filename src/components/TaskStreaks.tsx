@@ -30,15 +30,15 @@ const TaskStreaks: React.FC<TaskStreaksProps> = ({
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-200 dark:border-orange-800"
+          className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-200"
         >
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-full bg-orange-500/20">
-              <Flame className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              <Flame className="w-5 h-5 text-orange-600" />
             </div>
             <div>
               <p className="text-sm font-medium text-muted-foreground">Current Streak</p>
-              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+              <p className="text-2xl font-bold text-orange-600">
                 {currentStreak} {currentStreak === 1 ? 'day' : 'days'}
               </p>
             </div>
@@ -82,7 +82,7 @@ const TaskStreaks: React.FC<TaskStreaksProps> = ({
           </p>
         )}
         {currentStreak >= 7 && (
-          <p className="text-xs text-center text-orange-600 dark:text-orange-400 font-medium">
+          <p className="text-xs text-center text-orange-600 font-medium">
             Amazing! You're on a {currentStreak}-day streak! 🔥
           </p>
         )}

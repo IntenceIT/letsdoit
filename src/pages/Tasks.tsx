@@ -188,7 +188,7 @@ const Tasks: React.FC = () => {
             )}
             {!isTodaySelected && (
               <span 
-                className="inline-block px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-xs font-medium rounded-full mb-2 cursor-pointer hover:bg-orange-200 dark:hover:bg-orange-900/30 transition-colors"
+                className="inline-block px-3 py-1 bg-orange-100 text-orange-600 text-xs font-medium rounded-full mb-2 cursor-pointer hover:bg-orange-200 transition-colors"
                 onClick={handleTodayClick}
               >
                 View Only - Cannot Edit

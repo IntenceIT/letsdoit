@@ -72,8 +72,8 @@ const PendingApproval: React.FC = () => {
       >
         <Card className="shadow-lg">
           <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-amber-100 dark:bg-amber-900/20 rounded-full flex items-center justify-center">
-              <Clock className="w-8 h-8 text-amber-600 dark:text-amber-500 animate-pulse" />
+            <div className="mx-auto w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
+              <Clock className="w-8 h-8 text-amber-600 animate-pulse" />
             </div>
             <div>
               <CardTitle className="text-2xl">Pending Approval</CardTitle>

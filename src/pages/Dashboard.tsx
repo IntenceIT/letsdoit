@@ -183,7 +183,7 @@ const Dashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
               onClick={() => setShowDonePopup(true)}
-              className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-2 border-emerald-500 dark:border-emerald-600"
+              className="bg-white rounded-2xl p-6 shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-2 border-emerald-500"
             >
               <div className="flex flex-col items-center text-center space-y-3">
                 <div className="relative">
@@ -196,7 +196,7 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">{doneTasks}</p>
-                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 mt-1">Tasks Completed</p>
+                  <p className="text-sm font-semibold text-emerald-700 mt-1">Tasks Completed</p>
                 </div>
               </div>
             </motion.div>
@@ -207,7 +207,7 @@ const Dashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
               onClick={() => setShowPendingPopup(true)}
-              className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-2 border-orange-500 dark:border-orange-600"
+              className="bg-white rounded-2xl p-6 shadow-lg cursor-pointer hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-2 border-orange-500"
             >
               <div className="flex flex-col items-center text-center space-y-3">
                 <div className="relative">
@@ -220,7 +220,7 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">{pendingTasks}</p>
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300 mt-1">Tasks Pending</p>
+                  <p className="text-sm font-semibold text-amber-700 mt-1">Tasks Pending</p>
                 </div>
               </div>
             </motion.div>

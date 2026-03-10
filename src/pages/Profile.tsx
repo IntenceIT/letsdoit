@@ -10,9 +10,7 @@ import {
   ChevronRight,
   Loader2,
   Bell,
-  BellOff,
-  Moon,
-  Sun
+  BellOff
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMembers } from '@/hooks/useMembers';
@@ -50,7 +48,6 @@ const Profile: React.FC = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [isTogglingNotifications, setIsTogglingNotifications] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
 
   // Check notification status on mount
   useEffect(() => {
@@ -60,22 +57,6 @@ const Profile: React.FC = () => {
       setNotificationsEnabled(hasToken && permission === 'granted');
     }
   }, [member]);
-
-  // Check theme on mount
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
-    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    const initialTheme = savedTheme || systemTheme;
-    setTheme(initialTheme);
-    document.documentElement.classList.toggle("dark", initialTheme === "dark");
-  }, []);
-
-  const handleThemeToggle = (enabled: boolean) => {
-    const newTheme = enabled ? "dark" : "light";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-  };
 
   const handleNotificationToggle = async (enabled: boolean) => {
     if (!member) return;
@@ -93,7 +74,7 @@ const Profile: React.FC = () => {
 
     try {
       if (enabled) {
-        // Enable notifications
+        // Show browser permission dialog (same as first time)
         const success = await requestNotificationPermission(member.id);
         if (success) {
           setNotificationsEnabled(true);
@@ -102,9 +83,11 @@ const Profile: React.FC = () => {
             description: 'You\'ll receive daily task reminders at 12 AM and 7 PM',
           });
         } else {
+          // Permission was denied
+          setNotificationsEnabled(false);
           toast({
             title: 'Permission Denied',
-            description: 'Please allow notifications in your browser settings',
+            description: 'Please allow notifications in your browser settings to enable reminders',
             variant: 'destructive',
           });
         }
@@ -255,27 +238,6 @@ const Profile: React.FC = () => {
                 SETTINGS
               </h2>
               <div className="space-y-3">
-                {/* Theme Toggle */}
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    {theme === "dark" ? (
-                      <Moon className="w-5 h-5 text-primary" />
-                    ) : (
-                      <Sun className="w-5 h-5 text-primary" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Dark Mode</p>
-                    <p className="text-xs text-muted-foreground">
-                      {theme === "dark" ? 'Dark theme enabled' : 'Light theme enabled'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={theme === "dark"}
-                    onCheckedChange={handleThemeToggle}
-                  />
-                </div>
-
                 {/* Notifications Toggle */}
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -289,8 +251,8 @@ const Profile: React.FC = () => {
                     <p className="text-sm font-medium">Push Notifications</p>
                     <p className="text-xs text-muted-foreground">
                       {notificationsEnabled 
-                        ? 'Daily reminders at 12 AM & 7 PM' 
-                        : 'Enable to receive task reminders'}
+                        ? 'Enabled - Daily reminders at 12 AM & 7 PM' 
+                        : 'Disabled - Tap to enable task reminders'}
                     </p>
                   </div>
                   <Switch

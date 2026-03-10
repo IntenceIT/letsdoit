@@ -113,7 +113,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
         <Card
           className={cn(
             "overflow-hidden transition-all duration-200",
-            isCompleted && "bg-green-50 dark:bg-green-950/20 border-green-300 dark:border-green-700",
+            isCompleted && "bg-green-50 border-green-300",
             task.today_only && !isCompleted && "bg-primary/10 border-primary/50 border-2 shadow-lg",
             isProcessing && "opacity-60 pointer-events-none"
           )}
