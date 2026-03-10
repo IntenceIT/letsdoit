@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence, initializeFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { enableIndexedDbPersistence, initializeFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -44,3 +44,4 @@ if (typeof window !== 'undefined') {
 }
 
 export default app;
+export { app };

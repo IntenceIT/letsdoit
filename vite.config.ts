@@ -56,6 +56,7 @@ export default defineConfig(({ mode }) => ({
       'firebase/auth', 
       'firebase/firestore'
     ],
+    exclude: ['firebase/messaging'], // Exclude messaging from pre-bundling
     // Force optimization on startup
     force: true,
   },
