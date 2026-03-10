@@ -7,6 +7,7 @@ import BottomNav from '@/components/BottomNav';
 import StatCard from '@/components/StatCard';
 import CompletionChart from '@/components/CompletionChart';
 import TaskListPopup from '@/components/TaskListPopup';
+import NotificationPrompt from '@/components/NotificationPrompt';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -14,11 +15,12 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, isToday } from 'date-fns';
 
 const Dashboard: React.FC = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, member, isAdmin } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDonePopup, setShowDonePopup] = useState(false);
   const [showPendingPopup, setShowPendingPopup] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(true);
 
   const {
     totalTasks,
@@ -241,6 +243,14 @@ const Dashboard: React.FC = () => {
         tasks={pendingTasksList}
         type="pending"
       />
+
+      {/* Notification Prompt (shows on first login) */}
+      {member && showNotificationPrompt && (
+        <NotificationPrompt
+          memberId={member.id}
+          onClose={() => setShowNotificationPrompt(false)}
+        />
+      )}
 
       <BottomNav />
     </div>

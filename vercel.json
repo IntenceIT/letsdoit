@@ -17,5 +17,15 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/reset-tasks",
+      "schedule": "30 18 * * *"
+    },
+    {
+      "path": "/api/cron/send-reminders",
+      "schedule": "30 13 * * *"
+    }
   ]
 }

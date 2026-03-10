@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -8,7 +8,11 @@ import {
   Users, 
   Shield,
   ChevronRight,
-  Loader2
+  Loader2,
+  Bell,
+  BellOff,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMembers } from '@/hooks/useMembers';
@@ -18,6 +22,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,14 +34,102 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { 
+  requestNotificationPermission, 
+  disableNotifications,
+  getNotificationPermission,
+  isNotificationSupported
+} from '@/integrations/firebase/messaging';
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, member, isAdmin, signOut } = useAuth();
   const { pendingCount } = useMembers();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [isTogglingNotifications, setIsTogglingNotifications] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  // Check notification status on mount
+  useEffect(() => {
+    if (member) {
+      const hasToken = !!member.fcm_token;
+      const permission = getNotificationPermission();
+      setNotificationsEnabled(hasToken && permission === 'granted');
+    }
+  }, [member]);
+
+  // Check theme on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    const initialTheme = savedTheme || systemTheme;
+    setTheme(initialTheme);
+    document.documentElement.classList.toggle("dark", initialTheme === "dark");
+  }, []);
+
+  const handleThemeToggle = (enabled: boolean) => {
+    const newTheme = enabled ? "dark" : "light";
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
+    document.documentElement.classList.toggle("dark", newTheme === "dark");
+  };
+
+  const handleNotificationToggle = async (enabled: boolean) => {
+    if (!member) return;
+
+    if (!isNotificationSupported()) {
+      toast({
+        title: 'Not Supported',
+        description: 'Notifications are not supported in this browser',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsTogglingNotifications(true);
+
+    try {
+      if (enabled) {
+        // Enable notifications
+        const success = await requestNotificationPermission(member.id);
+        if (success) {
+          setNotificationsEnabled(true);
+          toast({
+            title: '🔔 Notifications Enabled',
+            description: 'You\'ll receive daily task reminders at 12 AM and 7 PM',
+          });
+        } else {
+          toast({
+            title: 'Permission Denied',
+            description: 'Please allow notifications in your browser settings',
+            variant: 'destructive',
+          });
+        }
+      } else {
+        // Disable notifications
+        const success = await disableNotifications(member.id);
+        if (success) {
+          setNotificationsEnabled(false);
+          toast({
+            title: 'Notifications Disabled',
+            description: 'You won\'t receive push notifications anymore',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling notifications:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update notification settings',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTogglingNotifications(false);
+    }
+  };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -150,12 +243,73 @@ const Profile: React.FC = () => {
           </Card>
         </motion.div>
 
+        {/* Settings */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card className="shadow-lg">
+            <CardContent className="p-4">
+              <h2 className="text-sm font-semibold text-muted-foreground mb-3">
+                SETTINGS
+              </h2>
+              <div className="space-y-3">
+                {/* Theme Toggle */}
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    {theme === "dark" ? (
+                      <Moon className="w-5 h-5 text-primary" />
+                    ) : (
+                      <Sun className="w-5 h-5 text-primary" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Dark Mode</p>
+                    <p className="text-xs text-muted-foreground">
+                      {theme === "dark" ? 'Dark theme enabled' : 'Light theme enabled'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={theme === "dark"}
+                    onCheckedChange={handleThemeToggle}
+                  />
+                </div>
+
+                {/* Notifications Toggle */}
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    {notificationsEnabled ? (
+                      <Bell className="w-5 h-5 text-primary" />
+                    ) : (
+                      <BellOff className="w-5 h-5 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Push Notifications</p>
+                    <p className="text-xs text-muted-foreground">
+                      {notificationsEnabled 
+                        ? 'Daily reminders at 12 AM & 7 PM' 
+                        : 'Enable to receive task reminders'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notificationsEnabled}
+                    onCheckedChange={handleNotificationToggle}
+                    disabled={isTogglingNotifications}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
         {/* Admin Menu Items */}
         {menuItems.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.3 }}
           >
             <Card className="shadow-lg">
               <CardContent className="p-4">
@@ -206,7 +360,7 @@ const Profile: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.4 }}
         >
           <Button
             variant="outline"

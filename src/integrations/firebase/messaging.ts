@@ -9,10 +9,30 @@ const messaging = getMessaging(app);
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
 
 /**
+ * Check if notifications are supported
+ */
+export const isNotificationSupported = (): boolean => {
+  return 'Notification' in window && 'serviceWorker' in navigator;
+};
+
+/**
+ * Get current notification permission status
+ */
+export const getNotificationPermission = (): NotificationPermission => {
+  if (!isNotificationSupported()) return 'denied';
+  return Notification.permission;
+};
+
+/**
  * Request notification permission and get FCM token
  */
 export const requestNotificationPermission = async (memberId: string): Promise<boolean> => {
   try {
+    if (!isNotificationSupported()) {
+      console.warn('Notifications not supported in this browser');
+      return false;
+    }
+
     // Request permission
     const permission = await Notification.requestPermission();
     
@@ -42,6 +62,24 @@ export const requestNotificationPermission = async (memberId: string): Promise<b
     return false;
   } catch (error) {
     console.error('Error getting notification permission:', error);
+    return false;
+  }
+};
+
+/**
+ * Disable notifications for a user
+ */
+export const disableNotifications = async (memberId: string): Promise<boolean> => {
+  try {
+    // Remove FCM token from user's member document
+    await membersService.update(memberId, {
+      fcm_token: null
+    });
+    
+    console.log('Notifications disabled');
+    return true;
+  } catch (error) {
+    console.error('Error disabling notifications:', error);
     return false;
   }
 };

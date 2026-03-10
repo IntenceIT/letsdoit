@@ -1,11 +1,11 @@
 // Service Worker for Lets Do It PWA
-// Optimized for fast loading - v8.0
-const CACHE_NAME = 'letsdoit-v8.0';
-const RUNTIME_CACHE = 'letsdoit-runtime-v8.0';
+// Optimized for fast loading - v9.0 (Dark Mode Support)
+const CACHE_NAME = 'letsdoit-v9.0';
+const RUNTIME_CACHE = 'letsdoit-runtime-v9.0';
 
 // Install event - skip waiting immediately
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing v8.0 (Fast Load + Install Support)...');
+  console.log('Service Worker: Installing v9.0 (Dark Mode Support)...');
   self.skipWaiting();
   
   // Notify clients about the new version
@@ -14,7 +14,7 @@ self.addEventListener('install', (event) => {
       clients.forEach((client) => {
         client.postMessage({
           type: 'SW_UPDATED',
-          version: '8.0'
+          version: '9.0'
         });
       });
     })
@@ -23,7 +23,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating v8.0 (Fast Load + Install Support)...');
+  console.log('Service Worker: Activating v9.0 (Dark Mode Support)...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -35,7 +35,7 @@ self.addEventListener('activate', (event) => {
         })
       );
     }).then(() => {
-      console.log('Service Worker: v8.0 activated and ready for install');
+      console.log('Service Worker: v9.0 activated with dark mode support');
       return self.clients.claim();
     }).then(() => {
       // Notify all clients that SW is ready
@@ -43,7 +43,7 @@ self.addEventListener('activate', (event) => {
         clients.forEach((client) => {
           client.postMessage({
             type: 'SW_READY',
-            version: '8.0'
+            version: '9.0'
           });
         });
       });
