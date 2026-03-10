@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { enableIndexedDbPersistence, initializeFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -24,8 +24,13 @@ if (missingKeys.length > 0) {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Auth
+// Initialize Auth with persistence
 export const auth = getAuth(app);
+
+// Set auth persistence to LOCAL (survives browser restarts)
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.warn('Failed to set auth persistence:', error);
+});
 
 // Initialize Firestore with optimized settings
 export const db = initializeFirestore(app, {

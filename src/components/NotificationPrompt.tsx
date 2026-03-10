@@ -26,17 +26,24 @@ const NotificationPrompt: React.FC<NotificationPromptProps> = ({ memberId, onClo
       const permission = getNotificationPermission();
       if (permission !== 'default') return false; // Already granted or denied
       
-      const hasSeenPrompt = localStorage.getItem('notification_prompt_seen');
-      if (hasSeenPrompt) return false; // Already seen
+      // Show for new users or if they haven't seen it in the last 7 days
+      const lastPromptTime = localStorage.getItem('notification_prompt_last_shown');
+      const now = Date.now();
+      const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
       
-      return true;
+      if (!lastPromptTime || parseInt(lastPromptTime) < sevenDaysAgo) {
+        return true;
+      }
+      
+      return false;
     };
 
     if (shouldShow()) {
-      // Show prompt after 2 seconds delay
+      // Show prompt after 3 seconds delay
       const timer = setTimeout(() => {
         setIsVisible(true);
-      }, 2000);
+        localStorage.setItem('notification_prompt_last_shown', Date.now().toString());
+      }, 3000);
       
       return () => clearTimeout(timer);
     }
@@ -46,7 +53,7 @@ const NotificationPrompt: React.FC<NotificationPromptProps> = ({ memberId, onClo
     setIsRequesting(true);
     try {
       const success = await requestNotificationPermission(memberId);
-      localStorage.setItem('notification_prompt_seen', 'true');
+      localStorage.setItem('notification_prompt_granted', 'true');
       
       if (success) {
         // Show success message briefly before closing
@@ -69,7 +76,7 @@ const NotificationPrompt: React.FC<NotificationPromptProps> = ({ memberId, onClo
   };
 
   const handleDismiss = () => {
-    localStorage.setItem('notification_prompt_seen', 'true');
+    localStorage.setItem('notification_prompt_dismissed', 'true');
     setIsVisible(false);
     setTimeout(onClose, 300);
   };

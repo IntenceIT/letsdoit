@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Optimized auth state initialization
+  // Optimized auth state initialization with better persistence
   useEffect(() => {
     let isMounted = true;
     
@@ -80,6 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       try {
         if (authUser) {
+          // User is signed in, fetch member data
           const memberData = await fetchMemberData(authUser);
           
           if (memberData && isMounted) {
@@ -90,14 +91,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
             setMember(memberData);
             setIsAdmin(memberData.role === 'admin');
+          } else if (isMounted) {
+            // Member data not found, sign out
+            await firebaseSignOut(auth);
+            setUser(null);
+            setMember(null);
+            setIsAdmin(false);
           }
         } else {
+          // User is signed out
           setUser(null);
           setMember(null);
           setIsAdmin(false);
         }
       } catch (error) {
         console.error('Error in auth state change:', error);
+        if (isMounted) {
+          setUser(null);
+          setMember(null);
+          setIsAdmin(false);
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -105,12 +118,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    // Set timeout to prevent infinite loading
+    // Reduced timeout to prevent long loading states
     const timeout = setTimeout(() => {
       if (isMounted) {
         setIsLoading(false);
       }
-    }, 5000);
+    }, 3000);
 
     return () => {
       isMounted = false;

@@ -1,12 +1,15 @@
 {
   "name": "Lets Do It - Task Management",
   "short_name": "Lets Do It",
-  "description": "Manage your daily tasks efficiently",
+  "description": "Manage your daily tasks efficiently - v10.0",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0ea5e9",
   "orientation": "portrait-primary",
+  "scope": "/",
+  "id": "letsdoit-v10",
+  "categories": ["productivity", "utilities"],
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
