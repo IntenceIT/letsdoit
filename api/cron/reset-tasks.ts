@@ -70,26 +70,69 @@ export default async function handler(
       console.log(`✅ Archived ${archivedCount} task records from ${yesterdayStr}`);
     }
 
-    // STEP 2: Reset all current task assignments to pending
-    console.log('🔄 Resetting all tasks to pending...');
-    const allAssignmentsSnapshot = await db.collection('task_assignments').get();
-
-    const resetBatch = db.batch();
-    let resetCount = 0;
-
-    allAssignmentsSnapshot.forEach((doc) => {
-      resetBatch.update(doc.ref, {
-        completion_status: 'pending',
-        completed_at: null,
-        ai_count_value: null,
-        assigned_date: today.toISOString().split('T')[0], // Update to today
-      });
-      resetCount++;
-    });
-
-    if (resetCount > 0) {
-      await resetBatch.commit();
-      console.log(`✅ Reset ${resetCount} task assignments`);
+    // STEP 2: Create new task assignments for today (don't update old ones)
+    console.log('🔄 Creating new task assignments for today...');
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Get all tasks
+    const tasksSnapshot = await db.collection('tasks').get();
+    
+    // Get all approved members
+    const approvedMembersSnapshot = await db
+      .collection('members')
+      .where('status', '==', 'approved')
+      .get();
+    
+    const createBatch = db.batch();
+    let createdCount = 0;
+    
+    // For each task, create assignments for today
+    for (const taskDoc of tasksSnapshot.docs) {
+      const task = taskDoc.data();
+      
+      // Check if task should be assigned today based on weekdays, dates, etc.
+      const shouldAssignToday = true; // You can add logic here for weekday filtering
+      
+      if (shouldAssignToday) {
+        // Check if task is assigned to specific members or all
+        const targetMembers = task.assigned_members && task.assigned_members.length > 0
+          ? approvedMembersSnapshot.docs.filter(m => task.assigned_members.includes(m.id))
+          : approvedMembersSnapshot.docs;
+        
+        // Create assignment for each target member
+        for (const memberDoc of targetMembers) {
+          // Check if assignment already exists for today
+          const existingAssignment = await db
+            .collection('task_assignments')
+            .where('task_id', '==', taskDoc.id)
+            .where('member_id', '==', memberDoc.id)
+            .where('assigned_date', '==', todayStr)
+            .limit(1)
+            .get();
+          
+          // Only create if doesn't exist
+          if (existingAssignment.empty) {
+            const newAssignmentRef = db.collection('task_assignments').doc();
+            createBatch.set(newAssignmentRef, {
+              task_id: taskDoc.id,
+              member_id: memberDoc.id,
+              assigned_date: todayStr,
+              completion_status: 'pending',
+              ai_count_value: null,
+              completed_at: null,
+              created_at: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            createdCount++;
+          }
+        }
+      }
+    }
+    
+    if (createdCount > 0) {
+      await createBatch.commit();
+      console.log(`✅ Created ${createdCount} new task assignments for ${todayStr}`);
+    } else {
+      console.log('No new assignments needed (already exist for today)');
     }
 
     // STEP 3: Send push notifications to all users
@@ -168,7 +211,7 @@ export default async function handler(
     return res.status(200).json({
       success: true,
       archived: archivedCount,
-      reset: resetCount,
+      created: createdCount,
       notifications: notificationCount,
       message: 'Daily reset completed successfully',
     });

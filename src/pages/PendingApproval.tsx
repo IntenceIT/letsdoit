@@ -8,10 +8,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/integrations/firebase/config';
 import { toast } from '@/hooks/use-toast';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 const PendingApproval: React.FC = () => {
   const { user, member, signOut, refreshMember } = useAuth();
   const navigate = useNavigate();
+
+  // If no user, redirect to login
+  useEffect(() => {
+    if (!user) {
+      navigate('/', { replace: true });
+      return;
+    }
+  }, [user, navigate]);
 
   // Real-time listener for member status changes
   useEffect(() => {
@@ -62,6 +71,57 @@ const PendingApproval: React.FC = () => {
     await signOut();
     navigate('/', { replace: true });
   };
+
+  // If no user, show loading
+  if (!user) {
+    return <LoadingSpinner message="Loading..." submessage="" />;
+  }
+
+  // If no member data yet, show loading message
+  if (!member) {
+    return (
+      <div className="min-h-screen bg-gradient-surface flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md"
+        >
+          <Card className="shadow-lg">
+            <CardHeader className="text-center space-y-4">
+              <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+              </div>
+              <div>
+                <CardTitle className="text-2xl">Setting Up Account</CardTitle>
+                <CardDescription className="mt-2">
+                  Please wait while we set up your account...
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-muted rounded-lg p-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Email:</span>
+                  <span className="font-medium">{user.email}</span>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign Out
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-surface flex items-center justify-center p-4">

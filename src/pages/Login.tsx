@@ -88,11 +88,20 @@ const Login: React.FC = () => {
 
       if (result.success) {
         setShowNameDialog(false);
-        toast({
-          title: 'Welcome!',
-          description: 'Successfully signed in with Google',
-        });
-        navigate('/dashboard');
+        
+        // Show appropriate message based on status
+        if (result.status === 'pending') {
+          toast({
+            title: 'Account Created!',
+            description: 'Waiting for admin approval',
+          });
+        } else {
+          toast({
+            title: 'Welcome!',
+            description: 'Successfully signed in with Google',
+          });
+        }
+        // Let the routing system handle navigation automatically
       } else if (result.needsName) {
         // This shouldn't happen now, but keep as fallback
         toast({

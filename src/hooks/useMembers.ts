@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { membersService } from '@/integrations/firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Member } from '@/integrations/firebase/types';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '@/integrations/firebase/config';
 
 export type { Member };
 
@@ -95,9 +97,35 @@ export const useMembers = () => {
   };
 
   useEffect(() => {
-    if (member?.organization_id) {
-      fetchMembers();
-    }
+    if (!member?.organization_id) return;
+
+    // Set up real-time listener for members
+    const q = query(
+      collection(db, 'members'),
+      where('organization_id', '==', member.organization_id)
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      { includeMetadataChanges: false },
+      (querySnapshot) => {
+        const membersData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Member));
+        
+        setMembers(membersData);
+        setLoading(false);
+        setError(null);
+      },
+      (err) => {
+        console.error('Error in members subscription:', err);
+        setError(err.message);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, [member?.organization_id]);
 
   return {

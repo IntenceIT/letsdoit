@@ -209,10 +209,15 @@ const Members: React.FC = () => {
               variant={showPendingOnly ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setShowPendingOnly(!showPendingOnly)}
-              className="gap-1"
+              className="gap-1 relative"
             >
               <Clock className="w-4 h-4" />
-              New Member {pendingMembers.length > 0 && `(${pendingMembers.length})`}
+              New Member
+              {pendingMembers.length > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1 text-xs">
+                  {pendingMembers.length}
+                </Badge>
+              )}
             </Button>
             <div className="flex items-center gap-2">
               {bulkDeleteMode && selectedMembers.length > 0 && (

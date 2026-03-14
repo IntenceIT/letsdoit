@@ -23,7 +23,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signInWithGoogle: (userName?: string) => Promise<{ success: boolean; error?: string; needsName?: boolean }>;
+  signInWithGoogle: (userName?: string) => Promise<{ success: boolean; error?: string; needsName?: boolean; status?: string }>;
   signOut: () => Promise<void>;
   refreshMember: () => Promise<void>;
 }
@@ -92,9 +92,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setMember(memberData);
             setIsAdmin(memberData.role === 'admin');
           } else if (isMounted) {
-            // Member data not found, sign out
-            await firebaseSignOut(auth);
-            setUser(null);
+            // Member data not found - this is normal for new users during signup
+            // Don't sign them out, just set user without member data
+            // The routing system will handle redirecting them appropriately
+            setUser({
+              id: authUser.uid,
+              email: authUser.email || '',
+              full_name: authUser.displayName || '',
+            });
             setMember(null);
             setIsAdmin(false);
           }
@@ -181,25 +186,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signInWithGoogle = async (userName?: string): Promise<{ success: boolean; error?: string; needsName?: boolean }> => {
+  const signInWithGoogle = async (userName?: string): Promise<{ success: boolean; error?: string; needsName?: boolean; status?: string }> => {
     try {
+      console.log('Step 1: Starting Google sign in...');
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       
       if (!result.user) {
+        console.error('Step 1 Failed: No user returned from Google');
         return { 
           success: false, 
           error: 'Google sign in failed' 
         };
       }
 
+      console.log('Step 2: Google auth successful, user:', result.user.email);
       const firebaseUser = result.user;
       const email = firebaseUser.email || '';
 
+      console.log('Step 3: Checking if member exists...');
       let memberData = await membersService.getByAuthUserId(firebaseUser.uid);
 
-      if (!memberData) {
+      // If member exists but is rejected, allow them to re-apply by resetting to pending
+      if (memberData && memberData.status === 'rejected') {
+        console.log('Step 3b: Member was rejected, resetting to pending for re-application...');
+        
         if (!userName) {
+          return {
+            success: false,
+            needsName: true,
+            error: 'Please provide your name'
+          };
+        }
+        
+        try {
+          // Update the rejected member to pending with new name
+          await membersService.update(memberData.id, {
+            status: 'pending',
+            full_name: userName.trim(),
+          });
+          
+          // Fetch updated member data
+          memberData = await membersService.getById(memberData.id);
+          console.log('Step 3b: Member reset to pending successfully');
+        } catch (updateError: any) {
+          console.error('Step 3b Failed: Error updating rejected member:', updateError);
+          return {
+            success: false,
+            error: `Failed to update member: ${updateError.message}`
+          };
+        }
+      }
+
+      if (!memberData) {
+        console.log('Step 4: Member not found, creating new member...');
+        
+        if (!userName) {
+          console.log('Step 4 Failed: No username provided');
           return {
             success: false,
             needsName: true,
@@ -209,23 +252,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || 'yasirazimshaikh5440@gmail.com';
         const isAdminUser = email.toLowerCase() === adminEmail.toLowerCase();
+        console.log('Step 5: Is admin user?', isAdminUser);
 
         let organizationId: string;
         
         if (isAdminUser) {
+          console.log('Step 6a: Admin user - checking organizations...');
           const orgs = await organizationsService.getAll();
           if (orgs.length === 0) {
+            console.log('Step 6a: No org found, creating new organization...');
             const newOrg = await organizationsService.create({
               organization_name: 'My Organization',
               created_by_admin_id: firebaseUser.uid,
             });
             organizationId = newOrg.id;
+            console.log('Step 6a: Organization created:', organizationId);
           } else {
             organizationId = orgs[0].id;
+            console.log('Step 6a: Using existing organization:', organizationId);
           }
         } else {
+          console.log('Step 6b: Regular user - checking organizations...');
           const orgs = await organizationsService.getAll();
           if (orgs.length === 0) {
+            console.error('Step 6b Failed: No organization found');
             await firebaseSignOut(auth);
             return {
               success: false,
@@ -233,21 +283,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             };
           }
           organizationId = orgs[0].id;
+          console.log('Step 6b: Using organization:', organizationId);
         }
 
-        memberData = await membersService.create({
-          auth_user_id: firebaseUser.uid,
-          organization_id: organizationId,
-          full_name: userName.trim(),
-          email: email,
-          role: isAdminUser ? 'admin' : 'member',
-          status: isAdminUser ? 'approved' : 'pending',
-          mobile_number: firebaseUser.phoneNumber || null,
-          fcm_token: null,
-          last_login_at: null,
-        });
+        console.log('Step 7: Creating member document...');
+        try {
+          memberData = await membersService.create({
+            auth_user_id: firebaseUser.uid,
+            organization_id: organizationId,
+            full_name: userName.trim(),
+            email: email,
+            role: isAdminUser ? 'admin' : 'member',
+            status: isAdminUser ? 'approved' : 'pending',
+            mobile_number: firebaseUser.phoneNumber || null,
+            fcm_token: null,
+            last_login_at: null,
+          });
+          console.log('Step 7: Member created successfully:', memberData);
+        } catch (createError: any) {
+          console.error('Step 7 Failed: Error creating member:', createError);
+          await firebaseSignOut(auth);
+          return {
+            success: false,
+            error: `Failed to create member: ${createError.message}`
+          };
+        }
+      } else {
+        console.log('Step 4: Member found:', memberData);
       }
 
+      console.log('Step 8: Setting auth state...');
       setUser({
         id: firebaseUser.uid,
         email: email,
@@ -256,9 +321,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setMember(memberData);
       setIsAdmin(memberData.role === 'admin');
 
-      return { success: true };
+      console.log('Step 9: Sign in complete! Status:', memberData.status);
+      return { 
+        success: true,
+        status: memberData.status
+      };
     } catch (error: any) {
-      console.error('Google sign in error:', error);
+      console.error('Google sign in error (outer catch):', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      console.error('Full error:', JSON.stringify(error, null, 2));
+      
       let errorMessage = 'An error occurred during Google sign in';
       
       if (error.code === 'auth/popup-closed-by-user') {
@@ -267,6 +340,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         errorMessage = 'Popup blocked. Please allow popups for this site.';
       } else if (error.code === 'auth/cancelled-popup-request') {
         errorMessage = 'Sign in cancelled';
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
       return { 

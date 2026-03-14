@@ -29,12 +29,14 @@ service cloud.firestore {
 
     // Members - special rules for approval flow
     match /members/{memberId} {
-      // Anyone authenticated can read their own pending status
+      // Anyone authenticated can read all members (needed for admin to see pending members)
       allow read: if isAuthenticated();
       // Anyone authenticated can create their own member doc (for signup)
+      // Allow creation even if not approved yet (for initial signup)
       allow create: if isAuthenticated() && request.auth.uid == memberId;
-      // Only admin can update/delete
-      allow update: if isAdmin();
+      // Only admin can update members, OR user can update their own if they're just signing in
+      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == memberId);
+      // Only admin can delete
       allow delete: if isAdmin();
     }
 

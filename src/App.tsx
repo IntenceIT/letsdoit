@@ -88,8 +88,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/" replace />;
   }
 
+  // If user exists but no member data, they might be in the middle of signup
+  // Let the routing system handle this case
   if (!member) {
-    return <LoadingSpinner message="Loading profile..." submessage="" />;
+    return <LoadingSpinner message="Setting up your account..." submessage="" />;
   }
 
   if (member.status === 'pending') {
@@ -105,15 +107,31 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 // Public Route wrapper
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, member, isLoading } = useAuth();
+  const { user, member, isLoading, signOut } = useAuth();
 
   if (isLoading) {
     return <LoadingSpinner message="Loading..." submessage="" />;
   }
 
-  if (user && member) {
+  // If user is authenticated
+  if (user) {
+    // If no member data yet, they might be in the middle of signup
+    // Redirect to pending approval to handle this case
+    if (!member) {
+      return <Navigate to="/pending-approval" replace />;
+    }
+    
+    // If member exists, check status
     if (member.status === 'approved') {
       return <Navigate to="/dashboard" replace />;
+    }
+    if (member.status === 'pending') {
+      return <Navigate to="/pending-approval" replace />;
+    }
+    if (member.status === 'rejected') {
+      // Sign out rejected users automatically
+      signOut();
+      return <>{children}</>;
     }
   }
 
@@ -184,8 +202,15 @@ const AppRoutes = () => {
           }
         />
 
-        {/* Pending Approval Route */}
-        <Route path="/pending-approval" element={<PendingApproval />} />
+        {/* Pending Approval Route - accessible to authenticated users */}
+        <Route 
+          path="/pending-approval" 
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <PendingApproval />
+            </Suspense>
+          } 
+        />
 
         {/* Catch all */}
         <Route path="*" element={<NotFound />} />
