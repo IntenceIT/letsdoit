@@ -29,6 +29,20 @@
       ]
     },
     {
+      "collectionGroup": "task_assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "member_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "assigned_date",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "tasks",
       "queryScope": "COLLECTION",
       "fields": [

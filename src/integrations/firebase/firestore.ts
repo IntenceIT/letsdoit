@@ -251,6 +251,33 @@ export const taskAssignmentsService = {
     return unsubscribe;
   },
 
+  // NEW: Subscribe to all assignments for a specific member
+  // This ensures we have historical data for all dates
+  subscribeToMember(memberId: string, callback: (assignments: TaskAssignment[]) => void): () => void {
+    const q = query(
+      collection(db, COLLECTIONS.TASK_ASSIGNMENTS),
+      where('member_id', '==', memberId),
+      orderBy('assigned_date', 'desc')
+    );
+    
+    const unsubscribe = onSnapshot(
+      q,
+      { includeMetadataChanges: false }, // Only trigger on actual data changes
+      (querySnapshot) => {
+        const assignments = querySnapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        } as TaskAssignment));
+        callback(assignments);
+      }, 
+      (error) => {
+        console.error('Error in member assignments subscription:', error);
+      }
+    );
+    
+    return unsubscribe;
+  },
+
   async update(id: string, data: Partial<TaskAssignmentInsert>): Promise<void> {
     const docRef = doc(db, COLLECTIONS.TASK_ASSIGNMENTS, id);
     await updateDoc(docRef, data);

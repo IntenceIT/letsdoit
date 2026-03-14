@@ -155,15 +155,42 @@ export const useTasks = (selectedDate: Date) => {
       }
     );
 
-    // Set up real-time listener for task assignments
-    const unsubscribeAssignments = taskAssignmentsService.subscribeToDate(
-      dateStr,
-      (fetchedAssignments) => {
-        if (isSubscribed) {
-          setAssignments(fetchedAssignments);
+    // For TODAY: Use real-time subscription for live updates
+    // For PAST DATES: Use one-time fetch for historical data
+    const today = new Date().toISOString().split('T')[0];
+    const isToday = dateStr === today;
+
+    let unsubscribeAssignments: () => void;
+
+    if (isToday) {
+      // Real-time subscription for today's data
+      unsubscribeAssignments = taskAssignmentsService.subscribeToDate(
+        dateStr,
+        (fetchedAssignments) => {
+          if (isSubscribed) {
+            setAssignments(fetchedAssignments);
+          }
         }
-      }
-    );
+      );
+    } else {
+      // One-time fetch for historical data
+      const fetchHistoricalData = async () => {
+        try {
+          const historicalAssignments = await taskAssignmentsService.getByMemberAndDate(member.id, dateStr);
+          if (isSubscribed) {
+            setAssignments(historicalAssignments);
+          }
+        } catch (error) {
+          console.error('Error fetching historical data:', error);
+          if (isSubscribed) {
+            setAssignments([]);
+          }
+        }
+      };
+
+      fetchHistoricalData();
+      unsubscribeAssignments = () => {}; // No-op for historical data
+    }
 
     return () => {
       isSubscribed = false;

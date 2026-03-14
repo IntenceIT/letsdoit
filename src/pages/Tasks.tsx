@@ -80,7 +80,7 @@ const Tasks: React.FC = () => {
     if (!isTodaySelected) {
       toast({
         title: 'Cannot Update Tasks',
-        description: 'You can only mark tasks as done for today',
+        description: 'You can only mark tasks as done for today. Past dates are read-only.',
         variant: 'destructive',
       });
       return;
@@ -191,7 +191,7 @@ const Tasks: React.FC = () => {
                 className="inline-block px-3 py-1 bg-orange-100 text-orange-600 text-xs font-medium rounded-full mb-2 cursor-pointer hover:bg-orange-200 transition-colors"
                 onClick={handleTodayClick}
               >
-                View Only - Cannot Edit
+                📅 Historical View - Read Only
               </span>
             )}
             <h2 

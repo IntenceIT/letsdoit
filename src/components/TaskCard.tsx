@@ -47,7 +47,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
   // Check completion status from assignment
   const isCompleted = task.assignment?.completion_status === 'completed';
-  const canEdit = isToday;
+  const canEdit = isToday; // Only allow editing for today's date
 
   const handleToggleComplete = async (e: React.MouseEvent) => {
     // Prevent event bubbling
