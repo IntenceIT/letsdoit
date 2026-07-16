@@ -158,9 +158,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Helper function to check if email is admin
       const isAdminEmail = (userEmail: string): boolean => {
-        const adminEmailsEnv = import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || 'yasirazimshaikh5440@gmail.com';
-        const adminEmails = adminEmailsEnv.split(',').map((e: string) => e.trim().toLowerCase());
-        return adminEmails.includes(userEmail.toLowerCase());
+        const hardcodedAdmins = [
+          'yasirazimshaikh5440@gmail.com',
+          'mahimhussain444@gmail.com',
+          'mohsinmir@gmail.com',
+        ];
+        const envAdmin = import.meta.env.VITE_ADMIN_EMAIL || '';
+        const allAdmins = [...hardcodedAdmins, envAdmin].map(e => e.trim().toLowerCase()).filter(Boolean);
+        return allAdmins.includes(userEmail.toLowerCase());
       };
 
       const isAdminUser = isAdminEmail(email);
@@ -227,25 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
         }
 
-<<<<<<< HEAD
-        // Helper function to check if email is admin
-        const isAdminEmail = (userEmail: string): boolean => {
-          const adminEmailsEnv = import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || 'yasirazimshaikh5440@gmail.com';
-          const adminEmails = adminEmailsEnv.split(',').map((e: string) => e.trim().toLowerCase());
-          return adminEmails.includes(userEmail.toLowerCase());
-        };
-
-        const isAdminUser = isAdminEmail(email);
         console.log('Step 5: Admin check - Email:', email, '| Is Admin:', isAdminUser);
-=======
-        const adminEmails = [
-          (import.meta.env.VITE_ADMIN_EMAIL || 'yasirazimshaikh5440@gmail.com').toLowerCase(),
-          'mahimhussain444@gmail.com',
-          'mohsinmir@gmail.com',
-        ];
-        const isAdminUser = adminEmails.includes(email.toLowerCase());
-        console.log('Step 5: Is admin user?', isAdminUser);
->>>>>>> 1446f9705cd3ccaf519825215bb58cd411e26ea5
 
         let organizationId: string;
         
