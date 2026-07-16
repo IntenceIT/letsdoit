@@ -33,33 +33,6 @@ export const useMembers = () => {
     }
   };
 
-  const addMember = async (memberData: {
-    auth_user_id: string;
-    organization_id: string;
-    full_name: string;
-    email: string;
-    mobile_number?: string;
-    role?: 'admin' | 'member';
-  }) => {
-    if (!isAdmin) {
-      throw new Error('Only admins can add members');
-    }
-
-    try {
-      const data = await membersService.create({
-        ...memberData,
-        role: memberData.role || 'member',
-        last_login_at: null,
-      });
-
-      setMembers(prev => [data, ...prev]);
-      return data;
-    } catch (err: any) {
-      console.error('Error adding member:', err);
-      throw err;
-    }
-  };
-
   const updateMember = async (id: string, updates: Partial<Member>) => {
     if (!isAdmin) {
       throw new Error('Only admins can update members');
@@ -133,7 +106,6 @@ export const useMembers = () => {
     loading,
     error,
     pendingCount,
-    addMember,
     updateMember,
     deleteMember,
     refetch: fetchMembers,

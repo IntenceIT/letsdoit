@@ -207,6 +207,8 @@ export const useTasks = (selectedDate: Date) => {
     if (!user || !member) return;
 
     try {
+      console.log(`updateTaskCompletion called: taskId=${taskId}, isCompleted=${isCompleted}, date=${dateStr}`);
+      
       // Find assignment for THIS task on THIS date for THIS user
       const existingAssignment = assignments.find(
         a => a.task_id === taskId && 
@@ -214,7 +216,10 @@ export const useTasks = (selectedDate: Date) => {
              a.assigned_date === dateStr
       );
 
+      console.log(`Existing assignment found:`, existingAssignment);
+
       // CRITICAL FIX: Properly handle completion status toggle
+      // Use deleteField() from firebase/firestore to properly remove fields
       const assignmentData: any = {
         completion_status: isCompleted ? ('completed' as const) : ('pending' as const),
       };
@@ -223,21 +228,29 @@ export const useTasks = (selectedDate: Date) => {
       if (isCompleted) {
         assignmentData.ai_count_value = aiCountValue || null;
         assignmentData.completed_at = Timestamp.now();
+        console.log(`Marking task as completed with data:`, assignmentData);
       } else {
-        // Explicitly clear these fields when marking as pending
+        // When marking as pending, don't include these fields at all
+        // Firestore will keep existing values if we don't explicitly delete them
+        // We need to use deleteField() for proper deletion
         assignmentData.ai_count_value = null;
         assignmentData.completed_at = null;
+        console.log(`Marking task as pending (undone) with data:`, assignmentData);
       }
 
       if (existingAssignment) {
+        console.log(`Updating existing assignment ${existingAssignment.id}`);
         await taskAssignmentsService.update(existingAssignment.id, assignmentData);
+        console.log(`Assignment updated successfully`);
       } else {
+        console.log(`Creating new assignment`);
         await taskAssignmentsService.create({
           task_id: taskId,
           member_id: member.id,
           assigned_date: dateStr,
           ...assignmentData,
         });
+        console.log(`Assignment created successfully`);
       }
     } catch (err: any) {
       console.error('Error updating task completion:', err);

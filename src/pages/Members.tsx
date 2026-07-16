@@ -4,8 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, 
   Search, 
-  UserPlus, 
-  Edit2, 
   Trash2, 
   MessageSquare,
   Loader2,
@@ -14,13 +12,19 @@ import {
   Square,
   UserCheck,
   UserX,
-  Clock
+  Clock,
+  Edit2,
+  User,
+  Mail,
+  Phone,
+  Save
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMembers, Member } from '@/hooks/useMembers';
 import BottomNav from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +38,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 
 const Members: React.FC = () => {
@@ -46,8 +57,14 @@ const Members: React.FC = () => {
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
+  const [memberToEdit, setMemberToEdit] = useState<Member | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showPendingOnly, setShowPendingOnly] = useState(false);
+  
+  // Edit form state
+  const [editFullName, setEditFullName] = useState('');
+  const [editMobileNumber, setEditMobileNumber] = useState('');
 
   // Separate pending and approved members
   const pendingMembers = members.filter(m => m.status === 'pending');
@@ -167,6 +184,71 @@ const Members: React.FC = () => {
         ? prev.filter((id) => id !== memberId)
         : [...prev, memberId]
     );
+  };
+
+  const handleEditClick = (member: Member) => {
+    setMemberToEdit(member);
+    setEditFullName(member.full_name);
+    setEditMobileNumber(member.mobile_number || '');
+  };
+
+  const formatPhoneNumber = (value: string) => {
+    let cleaned = value.replace(/\D/g, '');
+    if (cleaned.length > 10) {
+      cleaned = cleaned.slice(-10);
+    }
+    return cleaned;
+  };
+
+  const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhoneNumber(e.target.value);
+    setEditMobileNumber(formatted);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!memberToEdit) return;
+
+    // Validation
+    if (!editFullName.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Full name is required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (editMobileNumber && (editMobileNumber.length !== 10 || !/^\d{10}$/.test(editMobileNumber))) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please enter a valid 10-digit mobile number',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateMember(memberToEdit.id, {
+        full_name: editFullName.trim(),
+        mobile_number: editMobileNumber || null,
+      });
+
+      toast({
+        title: 'Member Updated',
+        description: 'Member information has been updated successfully',
+      });
+
+      setMemberToEdit(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update member',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!isAdmin) return null;
@@ -365,6 +447,7 @@ const Members: React.FC = () => {
                                       size="icon"
                                       className="h-8 w-8"
                                       onClick={() => handleSendSMS(member)}
+                                      title="Send SMS"
                                     >
                                       <MessageSquare className="w-4 h-4" />
                                     </Button>
@@ -373,7 +456,8 @@ const Members: React.FC = () => {
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={() => navigate('/members/add', { state: { editMember: member } })}
+                                    onClick={() => handleEditClick(member)}
+                                    title="Edit Member"
                                   >
                                     <Edit2 className="w-4 h-4" />
                                   </Button>
@@ -383,6 +467,7 @@ const Members: React.FC = () => {
                                       size="icon"
                                       className="h-8 w-8 text-destructive"
                                       onClick={() => setMemberToDelete(member)}
+                                      title="Delete Member"
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </Button>
@@ -401,6 +486,91 @@ const Members: React.FC = () => {
           </AnimatePresence>
         )}
       </div>
+
+      {/* Edit Member Dialog */}
+      <Dialog open={!!memberToEdit} onOpenChange={() => setMemberToEdit(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Member Details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Full Name */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-fullName">Full Name *</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="edit-fullName"
+                  placeholder="Enter full name"
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Email (Read-only) */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email (Read-only)</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={memberToEdit?.email || ''}
+                  className="pl-10 bg-muted"
+                  disabled
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Email cannot be changed
+              </p>
+            </div>
+
+            {/* Mobile Number */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-mobile">Mobile Number (Optional)</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="edit-mobile"
+                  type="tel"
+                  placeholder="Enter 10-digit mobile number"
+                  value={editMobileNumber}
+                  onChange={handleMobileChange}
+                  className="pl-10"
+                  maxLength={10}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setMemberToEdit(null)}
+              disabled={isSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!memberToDelete} onOpenChange={() => setMemberToDelete(null)}>
@@ -430,22 +600,6 @@ const Members: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Floating Add Button */}
-      <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ delay: 0.3 }}
-        className="fixed bottom-24 right-4 z-40"
-      >
-        <Button
-          size="lg"
-          onClick={() => navigate('/members/add')}
-          className="h-14 w-14 rounded-full shadow-lg gap-1"
-        >
-          <UserPlus className="w-6 h-6" />
-        </Button>
-      </motion.div>
 
       <BottomNav />
     </div>

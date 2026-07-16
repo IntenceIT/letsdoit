@@ -53,13 +53,22 @@ const TaskCard: React.FC<TaskCardProps> = ({
     // Prevent event bubbling
     e.stopPropagation();
     
+    console.log('=== Task Toggle Clicked ===');
+    console.log('Task ID:', task.id);
+    console.log('Current completion status:', isCompleted);
+    console.log('Can Edit:', canEdit);
+    console.log('Is Processing:', isProcessing);
+    console.log('Is Today:', isToday);
+    console.log('Assignment:', task.assignment);
+    
     if (!canEdit || isProcessing) {
-      console.log('Cannot edit:', { canEdit, isProcessing });
+      console.log('❌ Cannot edit - blocked by canEdit or isProcessing');
       return;
     }
 
     // If task requires AI count and we're marking it as done (going from pending to completed)
     if (!isCompleted && task.requires_ai_count) {
+      console.log('Opening AI count dialog for task that requires AI count');
       setIsAiCountDialogOpen(true);
       return;
     }
@@ -68,14 +77,17 @@ const TaskCard: React.FC<TaskCardProps> = ({
     setIsProcessing(true);
     
     try {
-      console.log(`Toggling task ${task.id} from ${isCompleted} to ${!isCompleted}`);
+      const newStatus = !isCompleted;
+      console.log(`📝 Toggling task ${task.id}`);
+      console.log(`   From: ${isCompleted ? 'completed' : 'pending'}`);
+      console.log(`   To: ${newStatus ? 'completed' : 'pending'}`);
       
       // CRITICAL FIX: Always pass the opposite of current state
-      await onComplete(task.id, !isCompleted);
+      await onComplete(task.id, newStatus);
       
-      console.log(`Successfully toggled task ${task.id} to ${!isCompleted ? 'completed' : 'pending'}`);
+      console.log(`✅ Successfully toggled task ${task.id} to ${newStatus ? 'completed' : 'pending'}`);
     } catch (error) {
-      console.error('Failed to toggle task completion:', error);
+      console.error('❌ Failed to toggle task completion:', error);
     } finally {
       // Add a small delay to prevent rapid re-clicks
       setTimeout(() => {

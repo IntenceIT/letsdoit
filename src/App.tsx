@@ -15,7 +15,6 @@ const Tasks = lazy(() => import("./pages/Tasks"));
 const AddTask = lazy(() => import("./pages/AddTask"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Members = lazy(() => import("./pages/Members"));
-const AddMember = lazy(() => import("./pages/AddMember"));
 const PendingApproval = lazy(() => import("./pages/PendingApproval"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -190,14 +189,6 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute>
               <Members />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/members/add"
-          element={
-            <ProtectedRoute>
-              <AddMember />
             </ProtectedRoute>
           }
         />
