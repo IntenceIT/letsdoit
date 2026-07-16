@@ -74,20 +74,36 @@ const Profile: React.FC = () => {
 
     try {
       if (enabled) {
-        // Show browser permission dialog (same as first time)
+        // Check current browser permission first
+        const currentPermission = getNotificationPermission();
+        console.log('Current permission:', currentPermission);
+        
+        if (currentPermission === 'denied') {
+          setNotificationsEnabled(false);
+          toast({
+            title: 'Permission Denied',
+            description: 'Please enable notifications in your browser settings first, then try again',
+            variant: 'destructive',
+          });
+          setIsTogglingNotifications(false);
+          return;
+        }
+
+        // Request permission and get FCM token
         const success = await requestNotificationPermission(member.id);
+        console.log('Request notification result:', success);
+        
         if (success) {
           setNotificationsEnabled(true);
           toast({
             title: '🔔 Notifications Enabled',
-            description: 'You\'ll receive daily task reminders at 12 AM and 7 PM',
+            description: 'You\'ll receive daily task reminders at 12 AM and 11 AM',
           });
         } else {
-          // Permission was denied
           setNotificationsEnabled(false);
           toast({
-            title: 'Permission Denied',
-            description: 'Please allow notifications in your browser settings to enable reminders',
+            title: 'Setup Failed',
+            description: 'Could not set up notifications. Please check your VAPID key configuration.',
             variant: 'destructive',
           });
         }
@@ -104,9 +120,10 @@ const Profile: React.FC = () => {
       }
     } catch (error) {
       console.error('Error toggling notifications:', error);
+      setNotificationsEnabled(false);
       toast({
         title: 'Error',
-        description: 'Failed to update notification settings',
+        description: `Failed to update notification settings: ${error.message}`,
         variant: 'destructive',
       });
     } finally {
@@ -251,7 +268,7 @@ const Profile: React.FC = () => {
                     <p className="text-sm font-medium">Push Notifications</p>
                     <p className="text-xs text-muted-foreground">
                       {notificationsEnabled 
-                        ? 'Enabled - Daily reminders at 12 AM & 7 PM' 
+                        ? 'Enabled - Daily reminders at 12 AM & 11 AM' 
                         : 'Disabled - Tap to enable task reminders'}
                     </p>
                   </div>

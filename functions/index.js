@@ -189,16 +189,16 @@ exports.resetTasksAtMidnight = functions
   });
 
 /**
- * Scheduled Function: Send personalized notifications at 7:00 PM for incomplete tasks
- * Runs every day at 19:00 (7:00 PM) in Asia/Kolkata timezone
+ * Scheduled Function: Send personalized notifications at 11:00 AM for incomplete tasks
+ * Runs every day at 11:00 (11:00 AM) in Asia/Kolkata timezone
  */
 exports.sendReminderNotifications = functions
   .region('asia-south1')
   .pubsub
-  .schedule('0 19 * * *') // Every day at 19:00 (7:00 PM)
+  .schedule('0 11 * * *') // Every day at 11:00 (11:00 AM)
   .timeZone('Asia/Kolkata')
   .onRun(async (context) => {
-    console.log('🔔 Sending 7 PM reminder notifications...');
+    console.log('🔔 Sending 11 AM reminder notifications...');
     
     try {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -220,7 +220,7 @@ exports.sendReminderNotifications = functions
       for (const memberDoc of membersSnapshot.docs) {
         const member = memberDoc.data();
         const memberId = memberDoc.id;
-        const memberName = member.name || 'there';
+        const memberName = member.full_name || 'there';
         
         // Get member's incomplete task assignments for today
         const assignmentsSnapshot = await db.collection('task_assignments')
@@ -260,7 +260,7 @@ exports.sendReminderNotifications = functions
                   body: `Don't forget: ${taskList}${moreText}`,
                 },
                 data: {
-                  type: 'evening_reminder',
+                  type: 'morning_reminder',
                   member_id: memberId,
                   count: pendingTasks.length.toString(),
                   date: today,
@@ -299,14 +299,14 @@ exports.sendReminderNotifications = functions
         }
       }
       
-      console.log(`✨ 7 PM Reminder Summary:`);
+      console.log(`✨ 11 AM Reminder Summary:`);
       console.log(`   - Total members checked: ${membersSnapshot.size}`);
       console.log(`   - Members with pending tasks: ${membersWithPendingTasks}`);
       console.log(`   - Notifications sent: ${totalNotificationsSent}`);
       
       return null;
     } catch (error) {
-      console.error('❌ Error sending 7 PM notifications:', error);
+      console.error('❌ Error sending 11 AM notifications:', error);
       return null;
     }
   });

@@ -96,7 +96,7 @@ curl https://asia-south1-YOUR_PROJECT.cloudfunctions.net/manualResetTasks
    ```
 4. ✅ Deletes data older than 1 year
 
-### Daily at 7:00 PM (Evening):
+### Daily at 11:00 AM (Morning):
 1. ✅ Checks each user's incomplete tasks
 2. ✅ Sends personalized notification:
    ```
@@ -114,7 +114,7 @@ curl https://asia-south1-YOUR_PROJECT.cloudfunctions.net/manualResetTasks
 - [ ] Go to Firebase Console → Functions
 - [ ] You should see 3 functions:
   - `resetTasksAtMidnight` (scheduled: 0 0 * * *)
-  - `sendReminderNotifications` (scheduled: 0 19 * * *)
+  - `sendReminderNotifications` (scheduled: 0 11 * * *)
   - `manualResetTasks` (HTTP trigger)
 
 ### Check Firestore Collections:
@@ -143,7 +143,7 @@ firebase functions:log
 
 ### Daily Notifications:
 - **12 AM**: Everyone gets "New day started" notification
-- **7 PM**: Only users with pending tasks get personalized reminder
+- **11 AM**: Only users with pending tasks get personalized reminder
 
 ### Mobile Experience:
 - Works on Android Chrome, iOS Safari (PWA)

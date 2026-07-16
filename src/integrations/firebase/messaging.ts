@@ -60,16 +60,18 @@ export const requestNotificationPermission = async (memberId: string): Promise<b
       return false;
     }
 
+    // Check if VAPID key is configured
+    if (!VAPID_KEY) {
+      console.error('VAPID key not configured in environment variables');
+      throw new Error('VAPID key not configured. Please add VITE_FIREBASE_VAPID_KEY to your .env file.');
+    }
+
     // Request permission
     const permission = await Notification.requestPermission();
+    console.log('Notification permission result:', permission);
     
     if (permission === 'granted') {
       console.log('Notification permission granted');
-      
-      if (!VAPID_KEY) {
-        console.warn('VAPID key not configured');
-        return false;
-      }
       
       // Get FCM token
       const token = await getToken(messagingInstance, {
@@ -77,7 +79,7 @@ export const requestNotificationPermission = async (memberId: string): Promise<b
       });
       
       if (token) {
-        console.log('FCM Token:', token);
+        console.log('FCM Token obtained:', token.substring(0, 20) + '...');
         
         // Dynamically import membersService to avoid circular dependencies
         const { membersService } = await import('./firestore');
@@ -87,17 +89,19 @@ export const requestNotificationPermission = async (memberId: string): Promise<b
           fcm_token: token
         });
         
+        console.log('FCM token saved to member document');
         return true;
+      } else {
+        console.error('Failed to get FCM token');
+        throw new Error('Failed to get FCM token. Please check your Firebase configuration.');
       }
     } else {
-      console.log('Notification permission denied');
+      console.log('Notification permission denied or dismissed');
       return false;
     }
-    
-    return false;
   } catch (error) {
     console.error('Error getting notification permission:', error);
-    return false;
+    throw error; // Re-throw to show specific error to user
   }
 };
 
