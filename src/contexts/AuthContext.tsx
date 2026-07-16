@@ -199,8 +199,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
         }
 
-        const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || 'yasirazimshaikh5440@gmail.com';
-        const isAdminUser = email.toLowerCase() === adminEmail.toLowerCase();
+        const adminEmails = [
+          (import.meta.env.VITE_ADMIN_EMAIL || 'yasirazimshaikh5440@gmail.com').toLowerCase(),
+          'mahimhussain444@gmail.com',
+          'mohsinmir@gmail.com',
+        ];
+        const isAdminUser = adminEmails.includes(email.toLowerCase());
         console.log('Step 5: Is admin user?', isAdminUser);
 
         let organizationId: string;
