@@ -1,73 +1,25 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, Loader2, User } from 'lucide-react';
+import { Loader2, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn, signInWithGoogle } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const { signInWithGoogle } = useAuth();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showNameDialog, setShowNameDialog] = useState(false);
   const [userName, setUserName] = useState('');
-  const [pendingGoogleSignIn, setPendingGoogleSignIn] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email.trim() || !password.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter both email and password',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const result = await signIn(email.trim(), password);
-
-      if (result.success) {
-        toast({
-          title: 'Welcome!',
-          description: 'Successfully logged in',
-        });
-        navigate('/dashboard');
-      } else {
-        toast({
-          title: 'Login Failed',
-          description: result.error || 'Invalid email or password',
-          variant: 'destructive',
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Login Failed',
-        description: error.message || 'An error occurred during login',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleGoogleSignIn = async () => {
-    // First, show name dialog
     setShowNameDialog(true);
-    setPendingGoogleSignIn(true);
   };
 
   const handleNameSubmit = async () => {
@@ -81,15 +33,12 @@ const Login: React.FC = () => {
     }
 
     setIsGoogleLoading(true);
-    
+
     try {
-      // Now proceed with Google sign-in
       const result = await signInWithGoogle(userName);
 
       if (result.success) {
         setShowNameDialog(false);
-        
-        // Show appropriate message based on status
         if (result.status === 'pending') {
           toast({
             title: 'Account Created!',
@@ -101,14 +50,6 @@ const Login: React.FC = () => {
             description: 'Successfully signed in with Google',
           });
         }
-        // Let the routing system handle navigation automatically
-      } else if (result.needsName) {
-        // This shouldn't happen now, but keep as fallback
-        toast({
-          title: 'Name Required',
-          description: 'Please enter your name',
-          variant: 'destructive',
-        });
       } else {
         toast({
           title: 'Sign In Failed',
@@ -126,7 +67,6 @@ const Login: React.FC = () => {
       setShowNameDialog(false);
     } finally {
       setIsGoogleLoading(false);
-      setPendingGoogleSignIn(false);
     }
   };
 
@@ -163,17 +103,16 @@ const Login: React.FC = () => {
 
         <Card className="border-border/50 shadow-xl">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl">Welcome Back</CardTitle>
-            <CardDescription>Sign in with your credentials</CardDescription>
+            <CardTitle className="text-xl">Welcome</CardTitle>
+            <CardDescription>Sign in to continue</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Google Sign-In Button */}
             <Button
               type="button"
               variant="outline"
-              className="w-full h-12 mb-4 border-2 hover:bg-accent"
+              className="w-full h-12 border-2 hover:bg-accent"
               onClick={handleGoogleSignIn}
-              disabled={isGoogleLoading || isLoading}
+              disabled={isGoogleLoading}
             >
               {isGoogleLoading ? (
                 <>
@@ -204,75 +143,6 @@ const Login: React.FC = () => {
                 </>
               )}
             </Button>
-
-            <div className="relative my-4">
-              <Separator />
-              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                OR
-              </span>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12"
-                    autoComplete="email"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 h-12"
-                    autoComplete="current-password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full h-12 bg-gradient-hero hover:opacity-90 transition-opacity font-medium"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign In'
-                )}
-              </Button>
-            </form>
           </CardContent>
         </Card>
 
@@ -284,10 +154,7 @@ const Login: React.FC = () => {
       {/* Name Dialog */}
       <Dialog open={showNameDialog} onOpenChange={(open) => {
         setShowNameDialog(open);
-        if (!open) {
-          setPendingGoogleSignIn(false);
-          setUserName('');
-        }
+        if (!open) setUserName('');
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -308,9 +175,7 @@ const Login: React.FC = () => {
                   onChange={(e) => setUserName(e.target.value)}
                   className="pl-10"
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      handleNameSubmit();
-                    }
+                    if (e.key === 'Enter') handleNameSubmit();
                   }}
                   autoFocus
                 />

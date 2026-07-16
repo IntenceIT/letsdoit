@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -9,8 +9,6 @@ import {
   Shield,
   ChevronRight,
   Loader2,
-  Bell,
-  BellOff
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMembers } from '@/hooks/useMembers';
@@ -20,7 +18,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,104 +29,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  requestNotificationPermission, 
-  disableNotifications,
-  getNotificationPermission,
-  isNotificationSupported
-} from '@/integrations/firebase/messaging';
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, member, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const { pendingCount } = useMembers();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [isTogglingNotifications, setIsTogglingNotifications] = useState(false);
-
-  // Check notification status on mount
-  useEffect(() => {
-    if (member) {
-      const hasToken = !!member.fcm_token;
-      const permission = getNotificationPermission();
-      setNotificationsEnabled(hasToken && permission === 'granted');
-    }
-  }, [member]);
-
-  const handleNotificationToggle = async (enabled: boolean) => {
-    if (!member) return;
-
-    if (!isNotificationSupported()) {
-      toast({
-        title: 'Not Supported',
-        description: 'Notifications are not supported in this browser',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsTogglingNotifications(true);
-
-    try {
-      if (enabled) {
-        // Check current browser permission first
-        const currentPermission = getNotificationPermission();
-        console.log('Current permission:', currentPermission);
-        
-        if (currentPermission === 'denied') {
-          setNotificationsEnabled(false);
-          toast({
-            title: 'Permission Denied',
-            description: 'Please enable notifications in your browser settings first, then try again',
-            variant: 'destructive',
-          });
-          setIsTogglingNotifications(false);
-          return;
-        }
-
-        // Request permission and get FCM token
-        const success = await requestNotificationPermission(member.id);
-        console.log('Request notification result:', success);
-        
-        if (success) {
-          setNotificationsEnabled(true);
-          toast({
-            title: '🔔 Notifications Enabled',
-            description: 'You\'ll receive daily task reminders at 12 AM and 11 AM',
-          });
-        } else {
-          setNotificationsEnabled(false);
-          toast({
-            title: 'Setup Failed',
-            description: 'Could not set up notifications. Please check your VAPID key configuration.',
-            variant: 'destructive',
-          });
-        }
-      } else {
-        // Disable notifications
-        const success = await disableNotifications(member.id);
-        if (success) {
-          setNotificationsEnabled(false);
-          toast({
-            title: 'Notifications Disabled',
-            description: 'You won\'t receive push notifications anymore',
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error toggling notifications:', error);
-      setNotificationsEnabled(false);
-      toast({
-        title: 'Error',
-        description: `Failed to update notification settings: ${error.message}`,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsTogglingNotifications(false);
-    }
-  };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -243,52 +150,12 @@ const Profile: React.FC = () => {
           </Card>
         </motion.div>
 
-        {/* Settings */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card className="shadow-lg">
-            <CardContent className="p-4">
-              <h2 className="text-sm font-semibold text-muted-foreground mb-3">
-                SETTINGS
-              </h2>
-              <div className="space-y-3">
-                {/* Notifications Toggle */}
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    {notificationsEnabled ? (
-                      <Bell className="w-5 h-5 text-primary" />
-                    ) : (
-                      <BellOff className="w-5 h-5 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Push Notifications</p>
-                    <p className="text-xs text-muted-foreground">
-                      {notificationsEnabled 
-                        ? 'Enabled - Daily reminders at 12 AM & 11 AM' 
-                        : 'Disabled - Tap to enable task reminders'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={notificationsEnabled}
-                    onCheckedChange={handleNotificationToggle}
-                    disabled={isTogglingNotifications}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
         {/* Admin Menu Items */}
         {menuItems.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.2 }}
           >
             <Card className="shadow-lg">
               <CardContent className="p-4">
@@ -339,7 +206,7 @@ const Profile: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          transition={{ delay: 0.3 }}
         >
           <Button
             variant="outline"

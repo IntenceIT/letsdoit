@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
-  signInWithEmailAndPassword, 
   signOut as firebaseSignOut,
   onAuthStateChanged,
   signInWithPopup,
@@ -22,7 +21,6 @@ interface AuthContextType {
   member: Member | null;
   isAdmin: boolean;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signInWithGoogle: (userName?: string) => Promise<{ success: boolean; error?: string; needsName?: boolean; status?: string }>;
   signOut: () => Promise<void>;
   refreshMember: () => Promise<void>;
@@ -136,55 +134,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubscribe();
     };
   }, []);
-
-  const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      
-      if (!userCredential.user) {
-        return { 
-          success: false, 
-          error: 'Sign in failed' 
-        };
-      }
-
-      const memberData = await fetchMemberData(userCredential.user);
-      
-      if (!memberData) {
-        await firebaseSignOut(auth);
-        return { 
-          success: false, 
-          error: 'User account not found. Please contact admin.' 
-        };
-      }
-
-      setUser({
-        id: userCredential.user.uid,
-        email: userCredential.user.email || '',
-        full_name: memberData.full_name,
-      });
-      setMember(memberData);
-      setIsAdmin(memberData.role === 'admin');
-
-      return { success: true };
-    } catch (error: any) {
-      console.error('Sign in error:', error);
-      let errorMessage = 'An error occurred during sign in';
-      
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        errorMessage = 'Invalid email or password';
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email address';
-      } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many failed attempts. Please try again later.';
-      }
-      
-      return { 
-        success: false, 
-        error: errorMessage
-      };
-    }
-  };
 
   const signInWithGoogle = async (userName?: string): Promise<{ success: boolean; error?: string; needsName?: boolean; status?: string }> => {
     try {
@@ -369,7 +318,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         member,
         isAdmin,
         isLoading,
-        signIn,
         signInWithGoogle,
         signOut,
         refreshMember,
