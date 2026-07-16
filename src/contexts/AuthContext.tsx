@@ -156,6 +156,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Step 3: Checking if member exists...');
       let memberData = await membersService.getByAuthUserId(firebaseUser.uid);
 
+      // Helper function to check if email is admin
+      const isAdminEmail = (userEmail: string): boolean => {
+        const adminEmailsEnv = import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || 'yasirazimshaikh5440@gmail.com';
+        const adminEmails = adminEmailsEnv.split(',').map((e: string) => e.trim().toLowerCase());
+        return adminEmails.includes(userEmail.toLowerCase());
+      };
+
+      const isAdminUser = isAdminEmail(email);
+      console.log('Admin check at login - Email:', email, '| Is Admin:', isAdminUser);
+
+      // If member exists and is a regular member but email is in admin list, upgrade to admin
+      if (memberData && memberData.role !== 'admin' && isAdminUser) {
+        console.log('Step 3a: Upgrading existing member to admin...');
+        try {
+          await membersService.update(memberData.id, {
+            role: 'admin',
+            status: 'approved',
+          });
+          
+          // Fetch updated member data
+          memberData = await membersService.getById(memberData.id);
+          console.log('Step 3a: Member upgraded to admin successfully');
+        } catch (updateError: any) {
+          console.error('Step 3a Failed: Error upgrading member to admin:', updateError);
+        }
+      }
+
       // If member exists but is rejected, allow them to re-apply by resetting to pending
       if (memberData && memberData.status === 'rejected') {
         console.log('Step 3b: Member was rejected, resetting to pending for re-application...');
@@ -169,15 +196,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         try {
-          // Update the rejected member to pending with new name
+          // Update the rejected member (or approved if admin) with new name
           await membersService.update(memberData.id, {
-            status: 'pending',
+            status: isAdminUser ? 'approved' : 'pending',
+            role: isAdminUser ? 'admin' : memberData.role || 'member',
             full_name: userName.trim(),
           });
           
           // Fetch updated member data
           memberData = await membersService.getById(memberData.id);
-          console.log('Step 3b: Member reset to pending successfully');
+          console.log('Step 3b: Member reset successfully');
         } catch (updateError: any) {
           console.error('Step 3b Failed: Error updating rejected member:', updateError);
           return {
@@ -199,9 +227,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
         }
 
-        const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || 'yasirazimshaikh5440@gmail.com';
-        const isAdminUser = email.toLowerCase() === adminEmail.toLowerCase();
-        console.log('Step 5: Is admin user?', isAdminUser);
+        // Helper function to check if email is admin
+        const isAdminEmail = (userEmail: string): boolean => {
+          const adminEmailsEnv = import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || 'yasirazimshaikh5440@gmail.com';
+          const adminEmails = adminEmailsEnv.split(',').map((e: string) => e.trim().toLowerCase());
+          return adminEmails.includes(userEmail.toLowerCase());
+        };
+
+        const isAdminUser = isAdminEmail(email);
+        console.log('Step 5: Admin check - Email:', email, '| Is Admin:', isAdminUser);
 
         let organizationId: string;
         

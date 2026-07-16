@@ -42,6 +42,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   const { isAdmin } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isAiCountDialogOpen, setIsAiCountDialogOpen] = useState(false);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [aiCountValue, setAiCountValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -66,23 +67,38 @@ const TaskCard: React.FC<TaskCardProps> = ({
       return;
     }
 
-    // If task requires AI count and we're marking it as done (going from pending to completed)
-    if (!isCompleted && task.requires_ai_count) {
-      console.log('Opening AI count dialog for task that requires AI count');
-      setIsAiCountDialogOpen(true);
+    // If marking as done (from pending to completed), show confirmation dialog
+    if (!isCompleted) {
+      console.log('📝 Marking task as done - showing confirmation dialog');
+      
+      // If task requires AI count, show AI count dialog first
+      if (task.requires_ai_count) {
+        console.log('Opening AI count dialog for task that requires AI count');
+        setIsAiCountDialogOpen(true);
+        return;
+      }
+      
+      // Otherwise show confirmation dialog
+      setIsConfirmDialogOpen(true);
       return;
     }
 
+    // If marking as undone (from completed to pending), do it directly
+    if (isCompleted) {
+      console.log('📝 Marking task as undone - no confirmation needed');
+      await performToggle(false);
+    }
+  };
+
+  const performToggle = async (newStatus: boolean) => {
     // Mark as processing to prevent double clicks
     setIsProcessing(true);
     
     try {
-      const newStatus = !isCompleted;
       console.log(`📝 Toggling task ${task.id}`);
       console.log(`   From: ${isCompleted ? 'completed' : 'pending'}`);
       console.log(`   To: ${newStatus ? 'completed' : 'pending'}`);
       
-      // CRITICAL FIX: Always pass the opposite of current state
       await onComplete(task.id, newStatus);
       
       console.log(`✅ Successfully toggled task ${task.id} to ${newStatus ? 'completed' : 'pending'}`);
@@ -94,6 +110,11 @@ const TaskCard: React.FC<TaskCardProps> = ({
         setIsProcessing(false);
       }, 500);
     }
+  };
+
+  const handleConfirmComplete = async () => {
+    setIsConfirmDialogOpen(false);
+    await performToggle(true);
   };
 
   const handleAiCountSubmit = async () => {
@@ -331,6 +352,42 @@ const TaskCard: React.FC<TaskCardProps> = ({
           </Collapsible>
         </Card>
       </motion.div>
+
+      {/* Confirmation Dialog - Mark as Done */}
+      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <DialogContent className="max-w-sm mx-auto">
+          <DialogHeader>
+            <DialogTitle className="text-center">Confirm Task Completion</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-center text-muted-foreground mb-2">
+              Are you sure you want to mark this task as done?
+            </p>
+            <div className="mt-4 p-3 bg-muted rounded-lg">
+              <p className="text-sm font-medium text-center">
+                {task.task_title}
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsConfirmDialogOpen(false)}
+              disabled={isProcessing}
+              className="flex-1 bg-white"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmComplete}
+              disabled={isProcessing}
+              className="flex-1 bg-gradient-hero hover:opacity-90"
+            >
+              {isProcessing ? 'Processing...' : 'OK'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* AI Count Dialog */}
       <Dialog open={isAiCountDialogOpen} onOpenChange={setIsAiCountDialogOpen}>
