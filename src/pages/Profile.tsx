@@ -9,6 +9,7 @@ import {
   Shield,
   ChevronRight,
   Loader2,
+  Bell
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMembers } from '@/hooks/useMembers';
@@ -18,6 +19,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import {
+  requestNotificationPermission,
+  disableNotifications,
+  getNotificationPermission,
+  showNotification
+} from '@/integrations/firebase/messaging';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,10 +40,66 @@ import { useToast } from '@/hooks/use-toast';
 const Profile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, member, isAdmin, signOut } = useAuth();
   const { pendingCount } = useMembers();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const [isNotifEnabled, setIsNotifEnabled] = useState<boolean>(() => {
+    return !!member?.fcm_token || getNotificationPermission() === 'granted';
+  });
+  const [isTogglingNotif, setIsTogglingNotif] = useState(false);
+
+  React.useEffect(() => {
+    if (member?.fcm_token) {
+      setIsNotifEnabled(true);
+    }
+  }, [member?.fcm_token]);
+
+  const handleToggleNotifications = async () => {
+    if (!member?.id) return;
+    setIsTogglingNotif(true);
+
+    try {
+      if (isNotifEnabled) {
+        // Disable notifications
+        const ok = await disableNotifications(member.id);
+        if (ok) {
+          setIsNotifEnabled(false);
+          toast({
+            title: 'Notifications Disabled',
+            description: 'You will no longer receive daily reminder notifications',
+          });
+        }
+      } else {
+        // Enable notifications
+        const ok = await requestNotificationPermission(member.id);
+        if (ok) {
+          setIsNotifEnabled(true);
+          showNotification('🎉 Notifications Enabled!', 'You will now receive daily reminders to complete your tasks.');
+          toast({
+            title: 'Notifications Enabled',
+            description: 'Notification permission granted & FCM token registered successfully!',
+          });
+        } else {
+          toast({
+            title: 'Permission Required',
+            description: 'Notification permission was denied or restricted by your browser/device.',
+            variant: 'destructive',
+          });
+        }
+      }
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Could not update notification preferences.';
+      toast({
+        title: 'Notification Error',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTogglingNotif(false);
+    }
+  };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -146,6 +209,68 @@ const Profile: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Notifications Toggle Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <Card className="shadow-lg">
+            <CardContent className="p-4">
+              <h2 className="text-sm font-semibold text-muted-foreground mb-3">
+                NOTIFICATIONS
+              </h2>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Bell className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Push Notifications</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isNotifEnabled ? 'Notifications active' : 'Get daily task reminders'}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant={isNotifEnabled ? "default" : "outline"}
+                  size="sm"
+                  disabled={isTogglingNotif}
+                  onClick={handleToggleNotifications}
+                  className="min-w-[80px]"
+                >
+                  {isTogglingNotif ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : isNotifEnabled ? (
+                    'Enabled'
+                  ) : (
+                    'Enable'
+                  )}
+                </Button>
+              </div>
+
+              {isNotifEnabled && (
+                <div className="mt-4 pt-3 border-t flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      showNotification('🔔 Test Notification', 'Notifications are working perfectly on your device!');
+                      toast({
+                        title: 'Test Notification Sent',
+                        description: 'Check your system/browser notification tray',
+                      });
+                    }}
+                    className="text-xs text-primary hover:text-primary"
+                  >
+                    Send Test Notification
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
