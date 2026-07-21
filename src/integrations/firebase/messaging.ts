@@ -149,15 +149,37 @@ export const onForegroundMessage = async (callback: (payload: any) => void) => {
 };
 
 /**
- * Show notification
+ * Show notification (Mobile & ServiceWorker safe)
  */
-export const showNotification = (title: string, body: string, data?: any) => {
-  if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification(title, {
-      body,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
-      data
-    });
+export const showNotification = async (title: string, body: string, data?: unknown) => {
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  const options: NotificationOptions = {
+    body,
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    data,
+  };
+
+  try {
+    // Android Chrome requires serviceWorker registration to display notifications
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      if (registration && registration.showNotification) {
+        await registration.showNotification(title, options);
+        return;
+      }
+    }
+
+    // Desktop browser fallback
+    new Notification(title, options);
+  } catch (error) {
+    console.warn('Error showing notification via ServiceWorker, trying fallback:', error);
+    try {
+      new Notification(title, options);
+    } catch (fallbackError) {
+      console.error('Failed to trigger notification:', fallbackError);
+    }
   }
 };
