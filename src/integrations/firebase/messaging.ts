@@ -73,35 +73,36 @@ export const requestNotificationPermission = async (memberId: string): Promise<b
     if (permission === 'granted') {
       console.log('Notification permission granted');
       
-      // Get FCM token
-      const token = await getToken(messagingInstance, {
-        vapidKey: VAPID_KEY
-      });
+      let token: string | null = null;
+      try {
+        if (VAPID_KEY) {
+          token = await getToken(messagingInstance, {
+            vapidKey: VAPID_KEY
+          });
+        }
+      } catch (tokenError: unknown) {
+        console.warn('FCM getToken failed (VAPID key mismatch or push service error), falling back to browser Notification API:', tokenError?.message);
+      }
       
+      // Save token if obtained, or fallback to local notification granted flag
       if (token) {
         console.log('FCM Token obtained:', token.substring(0, 20) + '...');
-        
-        // Dynamically import membersService to avoid circular dependencies
         const { membersService } = await import('./firestore');
-        
-        // Save token to user's member document
         await membersService.update(memberId, {
           fcm_token: token
         });
-        
-        console.log('FCM token saved to member document');
-        return true;
       } else {
-        console.error('Failed to get FCM token');
-        throw new Error('Failed to get FCM token. Please check your Firebase configuration.');
+        console.log('FCM Push token unavailable, but browser notification permission granted.');
       }
+      
+      return true;
     } else {
       console.log('Notification permission denied or dismissed');
       return false;
     }
   } catch (error) {
     console.error('Error getting notification permission:', error);
-    throw error; // Re-throw to show specific error to user
+    throw error;
   }
 };
 
