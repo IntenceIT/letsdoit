@@ -132,12 +132,6 @@ const NotificationPrompt: React.FC<NotificationPromptProps> = ({ memberId, onClo
                         <strong>12 AM:</strong> New day, fresh start
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-left">
-                      <span className="text-lg">⏰</span>
-                      <span className="text-muted-foreground">
-                        <strong>7 PM:</strong> Pending task reminders
-                      </span>
-                    </div>
                   </div>
                 </div>
 

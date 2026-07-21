@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ListTodo, CheckCircle2, Clock, Calendar, BadgeCheck, Timer } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTaskStats } from '@/hooks/useTasks';
+import { useMembers } from '@/hooks/useMembers';
 import BottomNav from '@/components/BottomNav';
 import StatCard from '@/components/StatCard';
 import CompletionChart from '@/components/CompletionChart';
@@ -16,6 +17,7 @@ import { format, isToday } from 'date-fns';
 
 const Dashboard: React.FC = () => {
   const { user, member, isAdmin } = useAuth();
+  const { pendingCount } = useMembers();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDonePopup, setShowDonePopup] = useState(false);
   const [showPendingPopup, setShowPendingPopup] = useState(false);
@@ -60,11 +62,33 @@ const Dashboard: React.FC = () => {
       >
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
-            <div>
-              <p className="text-white/80 text-sm">{greeting()}</p>
-              <h1 className="text-2xl font-bold">
-                {user?.full_name || 'User'}
-              </h1>
+            <div className="flex items-center gap-3">
+              {/* App logo with notification badge */}
+              <div className="relative">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="w-6 h-6 text-white"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M9 11l3 3L22 4" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                {isAdmin && pendingCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md">
+                    {pendingCount > 9 ? '9+' : pendingCount}
+                  </span>
+                )}
+              </div>
+              <div>
+                <p className="text-white/80 text-sm">{greeting()}</p>
+                <h1 className="text-2xl font-bold">
+                  {user?.full_name || 'User'}
+                </h1>
+              </div>
             </div>
             {isAdmin && (
               <span className="px-3 py-1 text-xs font-semibold bg-white/20 rounded-full backdrop-blur-sm">

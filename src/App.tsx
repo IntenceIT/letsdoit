@@ -1,10 +1,11 @@
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { Component, ErrorInfo, ReactNode, lazy, Suspense } from "react";
+import { Component, ErrorInfo, ReactNode, lazy, Suspense, useEffect } from "react";
 import InstallPrompt from "@/components/InstallPrompt";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
@@ -87,10 +88,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/" replace />;
   }
 
-  // If user exists but no member data, they might be in the middle of signup
-  // Let the routing system handle this case
+  // If user exists but member data is still loading (e.g. first render after auth fires),
+  // show a brief spinner instead of redirecting anywhere — avoids flash to login
   if (!member) {
-    return <LoadingSpinner message="Setting up your account..." submessage="" />;
+    return <LoadingSpinner message="Loading your account..." submessage="" />;
   }
 
   if (member.status === 'pending') {
@@ -122,7 +123,11 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     
     // If member exists, check status
     if (member.status === 'approved') {
-      return <Navigate to="/dashboard" replace />;
+      // Restore last visited page, or fall back to dashboard
+      const lastPath = sessionStorage.getItem('lastPath');
+      const safePaths = ['/dashboard', '/tasks', '/add-task', '/profile', '/members'];
+      const target = lastPath && safePaths.includes(lastPath) ? lastPath : '/dashboard';
+      return <Navigate to={target} replace />;
     }
     if (member.status === 'pending') {
       return <Navigate to="/pending-approval" replace />;
@@ -137,9 +142,26 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
+// Tracks the current page so we can restore it after a refresh
+const PathTracker: React.FC = () => {
+  const location = useLocation();
+  const { user, member } = useAuth();
+
+  useEffect(() => {
+    // Only save paths for authenticated approved users
+    const protectedPaths = ['/dashboard', '/tasks', '/add-task', '/profile', '/members'];
+    if (user && member?.status === 'approved' && protectedPaths.includes(location.pathname)) {
+      sessionStorage.setItem('lastPath', location.pathname);
+    }
+  }, [location.pathname, user, member]);
+
+  return null;
+};
+
 const AppRoutes = () => {
   return (
     <Suspense fallback={<PageLoader />}>
+      <PathTracker />
       <Routes>
         {/* Public Routes */}
         <Route
