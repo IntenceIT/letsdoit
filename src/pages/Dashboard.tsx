@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { ListTodo, CheckCircle2, Clock, Calendar, BadgeCheck, Timer } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTaskStats } from '@/hooks/useTasks';
@@ -16,6 +17,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, isToday } from 'date-fns';
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { user, member, isAdmin } = useAuth();
   const { pendingCount } = useMembers();
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -63,9 +65,14 @@ const Dashboard: React.FC = () => {
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
-              {/* App logo with notification badge */}
-              <div className="relative">
-                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              {/* App logo with notification badge - clickable for admins */}
+              <div
+                className="relative"
+                onClick={() => isAdmin && pendingCount > 0 && navigate('/members?tab=pending')}
+                style={{ cursor: isAdmin && pendingCount > 0 ? 'pointer' : 'default' }}
+                title={isAdmin && pendingCount > 0 ? `${pendingCount} pending member request${pendingCount > 1 ? 's' : ''}` : undefined}
+              >
+                <div className={`w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform ${isAdmin && pendingCount > 0 ? 'hover:scale-110 active:scale-95' : ''}`}>
                   <svg
                     viewBox="0 0 24 24"
                     fill="none"
@@ -78,7 +85,7 @@ const Dashboard: React.FC = () => {
                   </svg>
                 </div>
                 {isAdmin && pendingCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md">
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md animate-bounce">
                     {pendingCount > 9 ? '9+' : pendingCount}
                   </span>
                 )}

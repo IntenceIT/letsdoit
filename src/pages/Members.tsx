@@ -50,9 +50,10 @@ import { useToast } from '@/hooks/use-toast';
 const Members: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, member: currentMember } = useAuth();
   const { members, isLoading, error, refetch, deleteMember, updateMember } = useMembers();
 
+  // Read ?tab=pending from URL to auto-switch to pending view
   const [searchQuery, setSearchQuery] = useState('');
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
@@ -60,7 +61,10 @@ const Members: React.FC = () => {
   const [memberToEdit, setMemberToEdit] = useState<Member | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [showPendingOnly, setShowPendingOnly] = useState(false);
+  // Auto-open pending tab when navigated from badge
+  const [showPendingOnly, setShowPendingOnly] = useState(
+    () => new URLSearchParams(window.location.search).get('tab') === 'pending'
+  );
   
   // Edit form state
   const [editFullName, setEditFullName] = useState('');
@@ -99,6 +103,27 @@ const Members: React.FC = () => {
     window.open(smsUrl);
   };
 
+  // Send email notification to member via serverless API
+  const sendMemberEmail = async (member: Member, action: 'approved' | 'rejected') => {
+    try {
+      await fetch('/api/send-member-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberEmail: member.email,
+          memberName: member.full_name,
+          adminEmail: currentMember?.email || user?.email || '',
+          adminName: currentMember?.full_name || user?.full_name || 'Admin',
+          action,
+          appUrl: window.location.origin,
+        }),
+      });
+      // Fire and forget — don't block UI on email success/failure
+    } catch (err) {
+      console.warn('Email notification failed (non-critical):', err);
+    }
+  };
+
   const handleApproveMember = async (member: Member) => {
     try {
       await updateMember(member.id, { status: 'approved' });
@@ -106,6 +131,8 @@ const Members: React.FC = () => {
         title: 'Member Approved',
         description: `${member.full_name} can now access the app`,
       });
+      // Send approval email in background
+      sendMemberEmail(member, 'approved');
     } catch (error) {
       toast({
         title: 'Error',
@@ -122,6 +149,8 @@ const Members: React.FC = () => {
         title: 'Member Rejected',
         description: `${member.full_name} has been rejected`,
       });
+      // Send rejection email in background
+      sendMemberEmail(member, 'rejected');
     } catch (error) {
       toast({
         title: 'Error',
