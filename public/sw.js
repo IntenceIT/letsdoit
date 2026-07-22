@@ -1,11 +1,11 @@
 // Service Worker for Lets Do It PWA
-// Optimized for fast loading - v11.0 (Google Auth Only - Clean)
-const CACHE_NAME = 'letsdoit-v11.0';
-const RUNTIME_CACHE = 'letsdoit-runtime-v11.0';
+// Optimized for fast loading - v12.0 (Notification Schedule Feature)
+const CACHE_NAME = 'letsdoit-v12.0';
+const RUNTIME_CACHE = 'letsdoit-runtime-v12.0';
 
 // Install event - skip waiting immediately
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing v11.0 (Google Auth Only - Clean)...');
+  console.log('Service Worker: Installing v12.0 (Notification Schedule Feature)...');
   self.skipWaiting();
   
   // Notify clients about the new version
@@ -23,7 +23,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating v11.0 (Google Auth Only - Clean)...');
+  console.log('Service Worker: Activating v12.0 (Notification Schedule Feature)...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
