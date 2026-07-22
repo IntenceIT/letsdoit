@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -9,7 +9,10 @@ import {
   Shield,
   ChevronRight,
   Loader2,
-  Bell
+  Bell,
+  Clock,
+  Send,
+  CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMembers } from '@/hooks/useMembers';
@@ -49,6 +52,87 @@ const Profile: React.FC = () => {
     return !!member?.fcm_token || getNotificationPermission() === 'granted';
   });
   const [isTogglingNotif, setIsTogglingNotif] = useState(false);
+
+  // Admin: notification schedule state
+  const [notifHour, setNotifHour] = useState(19);
+  const [notifMinute, setNotifMinute] = useState(0);
+  const [isSavingTime, setIsSavingTime] = useState(false);
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testResult, setTestResult] = useState<{ sent: number; total: number } | null>(null);
+
+  // Load saved notification time on mount (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch('/api/notification-settings')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          setNotifHour(data.hour ?? 19);
+          setNotifMinute(data.minute ?? 0);
+        }
+      })
+      .catch(() => {/* use defaults */});
+  }, [isAdmin]);
+
+  const handleSaveNotifTime = async () => {
+    setIsSavingTime(true);
+    try {
+      const res = await fetch('/api/notification-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hour: notifHour, minute: notifMinute }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({
+          title: '✅ Schedule Saved',
+          description: `Daily reminders will go out at ${String(notifHour).padStart(2, '0')}:${String(notifMinute).padStart(2, '0')} IST`,
+        });
+      } else {
+        throw new Error(data.error || 'Failed to save');
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsSavingTime(false);
+    }
+  };
+
+  const handleSendTestNow = async () => {
+    setIsSendingTest(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/send-reminders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_CRON_SECRET || ''}`,
+        },
+        body: JSON.stringify({ test: true }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTestResult({ sent: data.summary?.sent ?? 0, total: data.summary?.total ?? 0 });
+        toast({
+          title: '🔔 Test Sent!',
+          description: `Notifications sent to ${data.summary?.sent ?? 0} of ${data.summary?.total ?? 0} members who have pending tasks today.`,
+        });
+      } else {
+        throw new Error(data.error || 'Failed to send test');
+      }
+    } catch (err: any) {
+      toast({ title: 'Test Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
+
+  // Format hour to 12h display
+  const formatTime12h = (h: number, m: number) => {
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+  };
 
   React.useEffect(() => {
     if (member?.fcm_token) {
@@ -274,6 +358,117 @@ const Profile: React.FC = () => {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Admin Notification Schedule Card — visible to admins only */}
+        {isAdmin && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.22 }}
+          >
+            <Card className="shadow-lg">
+              <CardContent className="p-4">
+                <h2 className="text-sm font-semibold text-muted-foreground mb-3">
+                  REMINDER SCHEDULE
+                </h2>
+
+                {/* Time picker */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Clock className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Daily Reminder Time</p>
+                    <p className="text-xs text-muted-foreground">
+                      Sends pending-task notification to all members (IST)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Hour + Minute selectors */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground mb-1 block">Hour (0–23)</label>
+                    <select
+                      value={notifHour}
+                      onChange={(e) => setNotifHour(Number(e.target.value))}
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>
+                          {String(i).padStart(2, '0')} — {i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground mb-1 block">Minute</label>
+                    <select
+                      value={notifMinute}
+                      onChange={(e) => setNotifMinute(Number(e.target.value))}
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
+                        <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="pt-5">
+                    <span className="text-sm font-semibold text-primary">
+                      {formatTime12h(notifHour, notifMinute)}
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  size="sm"
+                  className="w-full mb-3"
+                  onClick={handleSaveNotifTime}
+                  disabled={isSavingTime}
+                >
+                  {isSavingTime ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                  ) : (
+                    <><Clock className="w-4 h-4 mr-2" />Save Schedule</>
+                  )}
+                </Button>
+
+                <Separator className="my-3" />
+
+                {/* Test button */}
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Test: sends notification right now to all members with pending tasks today
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={handleSendTestNow}
+                    disabled={isSendingTest}
+                  >
+                    {isSendingTest ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" />Sending...</>
+                    ) : (
+                      <><Send className="w-4 h-4" />Send Test Reminder Now</>
+                    )}
+                  </Button>
+
+                  {/* Result badge after test */}
+                  {testResult && (
+                    <div className="flex items-center gap-2 mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                      <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                      <p className="text-xs text-green-700">
+                        Sent to <strong>{testResult.sent}</strong> member{testResult.sent !== 1 ? 's' : ''} with pending tasks
+                        {testResult.total > 0 && ` (${testResult.total} total members checked)`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Admin Menu Items */}
         {menuItems.length > 0 && (
